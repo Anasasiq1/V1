@@ -1,0 +1,6 @@
+{
+  "name": "Hyperlocal WhatsApp Store",
+  "description": "WhatsApp Hyperlocal Store with custom reorderable modules, dynamic sizes, n8n webhook triggers, category management, backup & restore, and full admin suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
