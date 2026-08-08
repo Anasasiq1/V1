@@ -12,12 +12,12 @@ export default defineConfig(() => {
       },
     },
     server: {
-      allowedHosts: ['.hm-q.in', 'store-wa.hm-q.in', '.run.app', '.com', '.in', '.dev', 'localhost', '127.0.0.1'],
+      allowedHosts: true as const,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     preview: {
-      allowedHosts: ['.hm-q.in', 'store-wa.hm-q.in', '.run.app', '.com', '.in', '.dev', 'localhost', '127.0.0.1'],
+      allowedHosts: true as const,
     },
   };
 });

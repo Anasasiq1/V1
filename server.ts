@@ -178,7 +178,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        allowedHosts: ['.hm-q.in', 'store-wa.hm-q.in', '.run.app', '.com', '.in', '.dev', 'localhost', '127.0.0.1'],
+        allowedHosts: true as const,
       },
       appType: 'spa',
     });
