@@ -26,6 +26,7 @@ export default function App() {
 
   // URL & User state
   const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [isWhatsappLoggedIn, setIsWhatsappLoggedIn] = useState<boolean>(false);
   const [deliveryAddress, setDeliveryAddress] = useState<string>('WVRW+J7M, Tirur, Kerala');
 
   // Active filters
@@ -53,12 +54,21 @@ export default function App() {
     }
 
     if (urlPhone) {
-      setCustomerPhone(urlPhone.replace(/[^0-9]/g, ''));
-      localStorage.setItem('hyperlocal_customer_phone', urlPhone.replace(/[^0-9]/g, ''));
+      const cleanPhone = urlPhone.replace(/[^0-9]/g, '');
+      setCustomerPhone(cleanPhone);
+      setIsWhatsappLoggedIn(true);
+      localStorage.setItem('hyperlocal_customer_phone', cleanPhone);
+      localStorage.setItem('hyperlocal_is_wa_login', 'true');
     } else {
+      const isWaLogin = localStorage.getItem('hyperlocal_is_wa_login') === 'true';
       const savedPhone = localStorage.getItem('hyperlocal_customer_phone');
-      if (savedPhone) setCustomerPhone(savedPhone);
-      else setCustomerPhone('919876543210'); // Default demo phone
+      if (isWaLogin && savedPhone) {
+        setCustomerPhone(savedPhone);
+        setIsWhatsappLoggedIn(true);
+      } else {
+        setCustomerPhone('');
+        setIsWhatsappLoggedIn(false);
+      }
     }
   }, []);
 
@@ -263,9 +273,12 @@ export default function App() {
         {/* Header */}
         <Header
           phone={customerPhone}
+          isWhatsappLoggedIn={isWhatsappLoggedIn}
           onSetPhone={(p) => {
             setCustomerPhone(p);
+            setIsWhatsappLoggedIn(true);
             localStorage.setItem('hyperlocal_customer_phone', p);
+            localStorage.setItem('hyperlocal_is_wa_login', 'true');
           }}
           cartCount={cart.reduce((s, i) => s + i.qty, 0)}
           onOpenCart={() => setIsCartOpen(true)}

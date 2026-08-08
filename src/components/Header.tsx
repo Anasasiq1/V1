@@ -3,6 +3,7 @@ import { MapPin, Bell, ShoppingBag, Shield, MessageCircle } from 'lucide-react';
 
 interface HeaderProps {
   phone: string;
+  isWhatsappLoggedIn: boolean;
   onSetPhone: (phone: string) => void;
   cartCount: number;
   onOpenCart: () => void;
@@ -14,6 +15,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   phone,
+  isWhatsappLoggedIn,
   onSetPhone,
   cartCount,
   onOpenCart,
@@ -87,19 +89,21 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          {/* WhatsApp Registration Badge */}
-          <button
-            onClick={() => {
-              setTempPhone(phone);
-              setShowPhoneModal(true);
-            }}
-            className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
-            title="WhatsApp Registered Number"
-          >
-            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">WhatsApp:</span>
-            <span>{phone ? phone : 'Connect'}</span>
-          </button>
+          {/* WhatsApp Registration Badge - Only rendered if logged in via WhatsApp link */}
+          {isWhatsappLoggedIn && phone && (
+            <button
+              onClick={() => {
+                setTempPhone(phone);
+                setShowPhoneModal(true);
+              }}
+              className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
+              title="WhatsApp Registered Number"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">WhatsApp:</span>
+              <span>{phone}</span>
+            </button>
+          )}
 
           {/* Notifications */}
           <button
@@ -127,21 +131,23 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* WhatsApp Login/Registration Info bar */}
-      <div className="bg-emerald-50/80 border border-emerald-100 rounded-lg px-2.5 py-1 text-[11px] text-emerald-800 font-semibold flex items-center justify-between">
-        <span className="truncate">
-          ✨ {phone ? `നിങ്ങളുടെ ഈ നമ്പറിൽ (${phone}) രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു` : 'WhatsApp വഴി കണക്റ്റ് ചെയ്തിരിക്കുന്നു'}
-        </span>
-        <button
-          onClick={() => {
-            setTempPhone(phone);
-            setShowPhoneModal(true);
-          }}
-          className="underline text-emerald-700 hover:text-emerald-900 font-bold ml-2 shrink-0"
-        >
-          {phone ? 'Change' : 'Set Phone'}
-        </button>
-      </div>
+      {/* WhatsApp Login/Registration Info bar - Only rendered if logged in via WhatsApp link */}
+      {isWhatsappLoggedIn && phone && (
+        <div className="bg-emerald-50/80 border border-emerald-100 rounded-lg px-2.5 py-1 text-[11px] text-emerald-800 font-semibold flex items-center justify-between mt-1">
+          <span className="truncate">
+            ✨ നിങ്ങളുടെ ഈ നമ്പറിൽ ({phone}) രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു
+          </span>
+          <button
+            onClick={() => {
+              setTempPhone(phone);
+              setShowPhoneModal(true);
+            }}
+            className="underline text-emerald-700 hover:text-emerald-900 font-bold ml-2 shrink-0"
+          >
+            Change
+          </button>
+        </div>
+      )}
 
       {/* Phone Number Modal */}
       {showPhoneModal && (
