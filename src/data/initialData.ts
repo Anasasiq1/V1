@@ -224,5 +224,13 @@ export const initialData: AppData = {
     store_name: 'WhatsApp Hyperlocal Store',
     delivery_address: 'WVRW+J7M, Tirur, Kerala',
     admin_pin: '1234',
+    express_delivery_fee: 40,
+    delivery_slots: [
+      { id: 'slot-1', time: '11:00 AM', label: 'Morning Slot', fee: 0, isFree: true, isActive: true },
+      { id: 'slot-2', time: '12:00 PM', label: 'Free Delivery Batch (ഉച്ചക്ക് 12 മണി ബാച്ച്)', fee: 0, isFree: true, isActive: true },
+      { id: 'slot-3', time: '01:00 PM', label: 'Post Lunch Slot', fee: 0, isFree: true, isActive: true },
+      { id: 'slot-4', time: '03:00 PM', label: 'Afternoon Slot', fee: 0, isFree: true, isActive: true },
+      { id: 'slot-5', time: '05:00 PM', label: 'Evening Batch', fee: 0, isFree: true, isActive: true },
+    ],
   },
 };

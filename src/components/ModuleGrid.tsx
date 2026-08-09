@@ -54,12 +54,14 @@ export const ModuleGrid: React.FC<ModuleGridProps> = ({ modules, onSelectModule 
                 )}
               </div>
 
-              {/* Background Icon / Emoji Illustration */}
-              <div className="absolute -right-2 -bottom-2 text-5xl sm:text-6xl opacity-30 pointer-events-none select-none transform rotate-[-10deg]">
-                {mod.icon.startsWith('http') ? (
-                  <img src={mod.icon} alt={mod.name} className="w-16 h-16 object-contain" />
+              {/* Background Icon / Image Illustration */}
+              <div className="absolute right-1 bottom-1 opacity-80 pointer-events-none select-none">
+                {mod.image ? (
+                  <img src={mod.image} alt={mod.name} className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md" />
+                ) : mod.icon && (mod.icon.startsWith('http') || mod.icon.startsWith('data:')) ? (
+                  <img src={mod.icon} alt={mod.name} className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md" />
                 ) : (
-                  mod.icon
+                  <span className="text-5xl sm:text-6xl opacity-40 transform rotate-[-10deg] block">{mod.icon}</span>
                 )}
               </div>
             </div>

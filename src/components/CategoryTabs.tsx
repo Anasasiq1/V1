@@ -42,7 +42,11 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
                   : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <span>{mod.icon}</span>
+              {mod.image ? (
+                <img src={mod.image} alt="" className="w-4 h-4 object-contain rounded-xs" />
+              ) : (
+                <span>{mod.icon}</span>
+              )}
               <span>{mod.name}</span>
             </button>
           );

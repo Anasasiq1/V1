@@ -87,23 +87,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         ) : currentQty > 0 ? (
           <div className="flex items-center justify-between bg-emerald-600 text-white rounded-xl overflow-hidden font-extrabold text-xs p-0.5">
             <button
-              onClick={() => onUpdateQty(product.id, -1)}
-              className="w-8 h-7 flex items-center justify-center hover:bg-emerald-700 transition-colors"
+              type="button"
+              onClick={() => onUpdateQty(cartItem?.cartId || product.id, -1)}
+              className="w-8 h-7 flex items-center justify-center hover:bg-emerald-700 transition-colors cursor-pointer"
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className="px-2 text-xs">{currentQty}</span>
+            <span className="px-2 text-xs font-black">{currentQty}</span>
             <button
-              onClick={() => onUpdateQty(product.id, 1)}
-              className="w-8 h-7 flex items-center justify-center hover:bg-emerald-700 transition-colors"
+              type="button"
+              onClick={() => onUpdateQty(cartItem?.cartId || product.id, 1)}
+              className="w-8 h-7 flex items-center justify-center hover:bg-emerald-700 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
           <button
+            type="button"
             onClick={() => onAddToCart(product)}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2 rounded-xl transition-colors flex items-center justify-center gap-1 shadow-2xs"
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2 rounded-xl transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
           >
             <ShoppingBag className="w-3.5 h-3.5" />
             <span>Add</span>

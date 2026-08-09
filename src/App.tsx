@@ -149,7 +149,7 @@ export default function App() {
   };
 
   // Cart operations
-  const handleAddToCart = (product: Product, variant?: ProductVariant) => {
+  const handleAddToCart = (product: Product, variant?: ProductVariant, quantity: number = 1) => {
     const variantName = variant ? variant.name : undefined;
     const price = variant ? variant.price : product.price;
     const cartId = `${product.id}_${variantName || 'default'}`;
@@ -157,7 +157,7 @@ export default function App() {
     setCart((prevCart) => {
       const existing = prevCart.find((i) => i.cartId === cartId);
       if (existing) {
-        return prevCart.map((i) => (i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i));
+        return prevCart.map((i) => (i.cartId === cartId ? { ...i, qty: i.qty + quantity } : i));
       }
       return [
         ...prevCart,
@@ -168,7 +168,7 @@ export default function App() {
           variantName,
           price,
           image: product.image,
-          qty: 1,
+          qty: quantity,
           categoryId: product.categoryId,
         },
       ];
@@ -189,7 +189,12 @@ export default function App() {
   };
 
   // Place Order API
-  const handlePlaceOrder = async (notes: string): Promise<boolean> => {
+  const handlePlaceOrder = async (
+    notes: string,
+    deliveryType: 'scheduled' | 'urgent' = 'scheduled',
+    deliverySlotTime?: string,
+    deliveryFee: number = 0
+  ): Promise<boolean> => {
     if (cart.length === 0) return false;
 
     const items = cart.map((i) => ({
@@ -200,13 +205,17 @@ export default function App() {
         appData.categories.find((c) => c.id === i.categoryId)?.name || 'General',
     }));
 
-    const totalAmount = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+    const itemsSubtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+    const totalAmount = itemsSubtotal + deliveryFee;
 
     const newOrder = {
       order_id: 'ORD-' + Date.now().toString().slice(-6),
       customer_phone: customerPhone || '919876543210',
       items,
       total_amount: totalAmount,
+      delivery_type: deliveryType,
+      delivery_slot_time: deliverySlotTime,
+      delivery_fee: deliveryFee,
       notes,
       order_time: new Date().toISOString(),
       status: 'Order Placed' as const,
@@ -385,7 +394,7 @@ export default function App() {
         <ProductDetailModal
           product={detailProduct}
           onClose={() => setDetailProduct(null)}
-          onAddToCartWithVariant={(p, v) => handleAddToCart(p, v)}
+          onAddToCartWithVariant={(p, v, q) => handleAddToCart(p, v, q)}
         />
 
         {/* Cart Drawer Modal */}
@@ -394,9 +403,11 @@ export default function App() {
           onUpdateQty={(cartId, change) => handleUpdateCartQty(cartId, change)}
           onClearCart={() => setCart([])}
           customerPhone={customerPhone}
+          settings={appData.settings}
           onPlaceOrder={handlePlaceOrder}
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
+          onOpenCart={() => setIsCartOpen(true)}
         />
 
         {/* Bottom Navigation */}

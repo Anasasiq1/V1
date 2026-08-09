@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Product, ProductVariant } from '../types';
-import { X, Star, Clock, ShoppingBag } from 'lucide-react';
+import { X, Star, Clock, ShoppingBag, Plus, Minus } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
-  onAddToCartWithVariant: (product: Product, selectedVariant?: ProductVariant) => void;
+  onAddToCartWithVariant: (product: Product, selectedVariant?: ProductVariant, quantity?: number) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -17,6 +17,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const hasVariants = product.variants && product.variants.length > 0;
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(0);
+  const [quantity, setQuantity] = useState<number>(1);
 
   const activePrice =
     hasVariants && product.variants![selectedVariantIndex]
@@ -25,7 +26,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const handleAdd = () => {
     const selectedVariant = hasVariants ? product.variants![selectedVariantIndex] : undefined;
-    onAddToCartWithVariant(product, selectedVariant);
+    onAddToCartWithVariant(product, selectedVariant, quantity);
     onClose();
   };
 
@@ -78,7 +79,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Variants Selection */}
           {hasVariants && (
-            <div className="mb-6">
+            <div className="mb-5">
               <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">
                 Select Option / വലിപ്പം തിരഞ്ഞെടുക്കുക:
               </h4>
@@ -104,13 +105,36 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
           )}
 
+          {/* Quantity Selector */}
+          <div className="flex items-center justify-between mb-5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+            <span className="text-xs font-bold text-slate-700">Quantity / എണ്ണം:</span>
+            <div className="flex items-center gap-3 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-xs">
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 font-bold"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <span className="font-extrabold text-sm text-slate-900 min-w-[20px] text-center">{quantity}</span>
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => q + 1)}
+                className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 font-bold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
           {/* Add To Cart Button */}
           <button
+            type="button"
             onClick={handleAdd}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
           >
             <ShoppingBag className="w-4 h-4" />
-            <span>Add to Cart - ₹{activePrice}</span>
+            <span>Add to Cart - ₹{activePrice * quantity}</span>
           </button>
         </div>
       </div>

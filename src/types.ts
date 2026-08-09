@@ -6,6 +6,7 @@ export interface Module {
   description: string;
   time: string;
   icon: string;
+  image?: string;
   bgColor: string;
   textColor?: string;
   size: ModuleSize;
@@ -18,6 +19,7 @@ export interface Category {
   name: string;
   moduleId: string;
   icon: string;
+  image?: string;
 }
 
 export interface ProductVariant {
@@ -50,6 +52,15 @@ export interface PromoBanner {
   linkModuleId?: string;
 }
 
+export interface DeliverySlot {
+  id: string;
+  time: string;
+  label: string;
+  fee: number;
+  isFree: boolean;
+  isActive: boolean;
+}
+
 export interface OrderItem {
   name: string;
   qty: number;
@@ -65,6 +76,9 @@ export interface Order {
   customer_phone: string;
   items: OrderItem[];
   total_amount: number;
+  delivery_type?: 'scheduled' | 'urgent';
+  delivery_slot_time?: string;
+  delivery_fee?: number;
   notes: string;
   order_time: string;
   status: OrderStatus;
@@ -87,6 +101,9 @@ export interface StoreSettings {
   store_name: string;
   delivery_address: string;
   admin_pin: string;
+  admin_logo?: string;
+  express_delivery_fee?: number;
+  delivery_slots?: DeliverySlot[];
 }
 
 export interface AppData {

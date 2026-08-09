@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import {
   AppData,
   Module,
@@ -7,6 +8,7 @@ import {
   PromoBanner,
   OrderStatus,
   ModuleSize,
+  DeliverySlot,
 } from '../types';
 import {
   LayoutDashboard,
@@ -16,7 +18,6 @@ import {
   FileText,
   Percent,
   Link2,
-  HelpCircle,
   Settings,
   Search,
   MessageSquare,
@@ -28,21 +29,24 @@ import {
   Plus,
   Trash2,
   Edit2,
-  ArrowUp,
-  ArrowDown,
   Save,
   RefreshCw,
   Check,
-  Globe,
-  TrendingUp,
-  TrendingDown,
   DollarSign,
   ShoppingCart,
-  Eye,
   X,
   Layers,
   Grid,
-  Key,
+  Image as ImageIcon,
+  UploadCloud,
+  FileArchive,
+  Store,
+  Sparkles,
+  Tag,
+  Eye,
+  Clock,
+  Zap,
+  Truck,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -65,7 +69,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinError, setPinError] = useState(false);
   const [adminPinCode, setAdminPinCode] = useState(
-    localStorage.getItem('ezmart_admin_pin') || '1234'
+    data.settings?.admin_pin || localStorage.getItem('ezmart_admin_pin') || '1234'
   );
 
   // Active Admin Sidebar tab
@@ -75,7 +79,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'products'
     | 'categories'
     | 'modules'
-    | 'discounts'
+    | 'delivery'
     | 'integrations'
     | 'reports'
     | 'settings'
@@ -86,6 +90,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Filter states
   const [adminSearch, setAdminSearch] = useState('');
+  const [selectedModuleFilter, setSelectedModuleFilter] = useState<string>('all');
 
   // Form states for Modules
   const [editingModule, setEditingModule] = useState<Partial<Module> | null>(null);
@@ -99,24 +104,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isNewProduct, setIsNewProduct] = useState(false);
 
-  // Form states for Banners
-  const [editingBanner, setEditingBanner] = useState<Partial<PromoBanner> | null>(null);
-  const [isNewBanner, setIsNewBanner] = useState(false);
+  // Delivery Slots state
+  const defaultSlots: DeliverySlot[] = [
+    { id: 'slot-1', time: '11:00 AM', label: 'Morning Slot', fee: 0, isFree: true, isActive: true },
+    { id: 'slot-2', time: '12:00 PM', label: 'Free Delivery Batch (ഉച്ചക്ക് 12 മണി ബാച്ച്)', fee: 0, isFree: true, isActive: true },
+    { id: 'slot-3', time: '01:00 PM', label: 'Post Lunch Slot', fee: 0, isFree: true, isActive: true },
+    { id: 'slot-4', time: '03:00 PM', label: 'Afternoon Slot', fee: 0, isFree: true, isActive: true },
+    { id: 'slot-5', time: '05:00 PM', label: 'Evening Batch', fee: 0, isFree: true, isActive: true },
+  ];
 
-  // Webhook settings state
+  const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>(
+    data.settings?.delivery_slots && data.settings.delivery_slots.length > 0
+      ? data.settings.delivery_slots
+      : defaultSlots
+  );
+
+  const [expressFeeInput, setExpressFeeInput] = useState<number>(
+    data.settings?.express_delivery_fee ?? 40
+  );
+
+  const [editingSlot, setEditingSlot] = useState<Partial<DeliverySlot> | null>(null);
+  const [isNewSlot, setIsNewSlot] = useState(false);
+
+  // Settings & Branding state
   const [webhookUrl, setWebhookUrl] = useState(data.settings?.n8n_webhook_url || '');
-
-  // Settings state
+  const [storeName, setStoreName] = useState(data.settings?.store_name || 'WhatsApp Hyperlocal Store');
+  const [adminLogo, setAdminLogo] = useState(data.settings?.admin_logo || '');
   const [newPinInput, setNewPinInput] = useState(adminPinCode);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
-    setTimeout(() => setToastMsg(null), 3000);
+    setTimeout(() => setToastMsg(null), 3500);
   };
 
   const handleUnlockPIN = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === adminPinCode || pin === '1234') {
+    if (pin === adminPinCode || pin === '1234' || pin === data.settings?.admin_pin) {
       setIsUnlocked(true);
       setPinError(false);
     } else {
@@ -125,21 +148,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  // Helper for reading uploaded image files to base64 Data URL
+  const handleImageFileRead = (
+    file: File,
+    onSuccess: (base64Url: string) => void
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image file size should be less than 10MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        onSuccess(e.target.result as string);
+        showToast('Image uploaded successfully!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ---------------- MODULES MANAGEMENT ----------------
   const handleSaveModule = async () => {
-    if (!editingModule?.name) return showToast('Module name is required', 'error');
+    if (!editingModule?.name?.trim()) return showToast('Module name is required', 'error');
 
     let updatedModules = [...data.modules];
     if (isNewModule) {
       const newMod: Module = {
         id: 'mod-' + Date.now(),
-        name: editingModule.name || 'New Module',
+        name: editingModule.name.trim(),
         description: editingModule.description || '',
         time: editingModule.time || '20-30 min',
         icon: editingModule.icon || '📦',
+        image: editingModule.image || '',
         bgColor: editingModule.bgColor || 'linear-gradient(135deg, #e8f5e9, #c8e6c9)',
         size: (editingModule.size as ModuleSize) || 'medium',
         order: updatedModules.length + 1,
+        badge: editingModule.badge || '',
       };
       updatedModules.push(newMod);
     } else {
@@ -156,7 +205,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDeleteModule = async (id: string) => {
-    if (confirm('Are you sure you want to delete this module?')) {
+    if (confirm('Are you sure you want to delete this module? Categories associated with this module may lose their parent link.')) {
       const updated = data.modules.filter((m) => m.id !== id);
       setSaving(true);
       await onUpdateData({ ...data, modules: updated });
@@ -167,15 +216,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // ---------------- CATEGORIES MANAGEMENT ----------------
   const handleSaveCategory = async () => {
-    if (!editingCategory?.name) return showToast('Category name is required', 'error');
+    if (!editingCategory?.name?.trim()) return showToast('Category name is required', 'error');
+    if (!editingCategory?.moduleId) return showToast('Please select a module for this category', 'error');
 
     let updatedCategories = [...data.categories];
     if (isNewCategory) {
       const newCat: Category = {
         id: 'cat-' + Date.now(),
-        name: editingCategory.name || 'New Category',
-        moduleId: editingCategory.moduleId || (data.modules[0]?.id ?? ''),
+        name: editingCategory.name.trim(),
+        moduleId: editingCategory.moduleId,
         icon: editingCategory.icon || '🏷️',
+        image: editingCategory.image || '',
       };
       updatedCategories.push(newCat);
     } else {
@@ -188,11 +239,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     await onUpdateData({ ...data, categories: updatedCategories });
     setSaving(false);
     setEditingCategory(null);
-    showToast('Category saved!');
+    showToast('Category saved successfully!');
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (confirm('Delete category?')) {
+    if (confirm('Are you sure you want to delete this category?')) {
       const updated = data.categories.filter((c) => c.id !== id);
       setSaving(true);
       await onUpdateData({ ...data, categories: updated });
@@ -203,14 +254,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // ---------------- PRODUCTS MANAGEMENT ----------------
   const handleSaveProduct = async () => {
-    if (!editingProduct?.name || !editingProduct?.price)
-      return showToast('Product name & price are required', 'error');
+    if (!editingProduct?.name?.trim()) return showToast('Product name is required', 'error');
+    if (!editingProduct?.price || Number(editingProduct.price) <= 0)
+      return showToast('Valid price is required', 'error');
 
     let updatedProducts = [...data.products];
     if (isNewProduct) {
       const newProd: Product = {
         id: 'prod-' + Date.now(),
-        name: editingProduct.name,
+        name: editingProduct.name.trim(),
         price: Number(editingProduct.price),
         oldPrice: editingProduct.oldPrice ? Number(editingProduct.oldPrice) : undefined,
         categoryId: editingProduct.categoryId || (data.categories[0]?.id ?? ''),
@@ -219,6 +271,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         deliveryTime: editingProduct.deliveryTime || '20 min',
         image: editingProduct.image || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500',
         description: editingProduct.description || '',
+        variants: editingProduct.variants || [],
         available: editingProduct.available !== false,
       };
       updatedProducts.push(newProd);
@@ -232,17 +285,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     await onUpdateData({ ...data, products: updatedProducts });
     setSaving(false);
     setEditingProduct(null);
-    showToast('Product saved!');
+    showToast('Product saved successfully!');
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (confirm('Delete product?')) {
+    if (confirm('Are you sure you want to delete this product?')) {
       const updated = data.products.filter((p) => p.id !== id);
       setSaving(true);
       await onUpdateData({ ...data, products: updated });
       setSaving(false);
       showToast('Product deleted');
     }
+  };
+
+  // ---------------- DELIVERY SLOTS & EXPRESS FEES ----------------
+  const handleSaveSlot = async () => {
+    if (!editingSlot?.time?.trim()) return showToast('Time is required for delivery slot', 'error');
+
+    let updatedSlots = [...deliverySlots];
+    if (isNewSlot) {
+      const newSlot: DeliverySlot = {
+        id: 'slot-' + Date.now(),
+        time: editingSlot.time.trim(),
+        label: editingSlot.label?.trim() || 'Scheduled Slot',
+        fee: Number(editingSlot.fee || 0),
+        isFree: Number(editingSlot.fee || 0) === 0,
+        isActive: editingSlot.isActive !== false,
+      };
+      updatedSlots.push(newSlot);
+    } else {
+      updatedSlots = updatedSlots.map((s) =>
+        s.id === editingSlot.id
+          ? ({
+              ...s,
+              ...editingSlot,
+              fee: Number(editingSlot.fee || 0),
+              isFree: Number(editingSlot.fee || 0) === 0,
+            } as DeliverySlot)
+          : s
+      );
+    }
+
+    setDeliverySlots(updatedSlots);
+    const updatedSettings = {
+      ...data.settings,
+      delivery_slots: updatedSlots,
+      express_delivery_fee: expressFeeInput,
+    };
+    setSaving(true);
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    setEditingSlot(null);
+    showToast('Delivery slot saved successfully!');
+  };
+
+  const handleDeleteSlot = async (id: string) => {
+    if (confirm('Are you sure you want to delete this delivery slot?')) {
+      const updated = deliverySlots.filter((s) => s.id !== id);
+      setDeliverySlots(updated);
+      const updatedSettings = {
+        ...data.settings,
+        delivery_slots: updated,
+        express_delivery_fee: expressFeeInput,
+      };
+      setSaving(true);
+      await onUpdateData({ ...data, settings: updatedSettings });
+      setSaving(false);
+      showToast('Delivery slot deleted');
+    }
+  };
+
+  const handleToggleSlotActive = async (id: string) => {
+    const updated = deliverySlots.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s));
+    setDeliverySlots(updated);
+    const updatedSettings = {
+      ...data.settings,
+      delivery_slots: updated,
+      express_delivery_fee: expressFeeInput,
+    };
+    setSaving(true);
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    showToast('Slot status updated!');
+  };
+
+  const handleSaveExpressFee = async () => {
+    const updatedSettings = {
+      ...data.settings,
+      delivery_slots: deliverySlots,
+      express_delivery_fee: Number(expressFeeInput),
+    };
+    setSaving(true);
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    showToast('Express Delivery Fee updated!');
   };
 
   // ---------------- ORDERS MANAGEMENT ----------------
@@ -273,45 +409,140 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     else showToast('Webhook test failed. Check URL or n8n endpoint.', 'error');
   };
 
-  // ---------------- BACKUP & RESTORE ----------------
-  const handleDownloadBackup = () => {
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ezmart_store_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Backup JSON downloaded!');
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const content = event.target?.result as string;
-        const ok = await onRestoreBackup(content);
-        if (ok) showToast('Database successfully restored!');
-        else showToast('Failed to restore backup.', 'error');
-      } catch {
-        showToast('Invalid backup file format.', 'error');
-      }
+  // ---------------- STORE SETTINGS & ADMIN BRANDING ----------------
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    const updatedSettings = {
+      ...data.settings,
+      store_name: storeName.trim(),
+      admin_logo: adminLogo,
+      admin_pin: newPinInput.length >= 4 ? newPinInput : data.settings.admin_pin,
     };
-    reader.readAsText(file);
-  };
-
-  // ---------------- PIN CODE SAVE ----------------
-  const handleSavePin = () => {
     if (newPinInput.length >= 4) {
       setAdminPinCode(newPinInput);
       localStorage.setItem('ezmart_admin_pin', newPinInput);
-      showToast('Admin Security PIN updated successfully!');
+    }
+    await onUpdateData({
+      ...data,
+      settings: updatedSettings,
+    });
+    setSaving(false);
+    showToast('Admin Branding & Settings saved successfully!');
+  };
+
+  // ---------------- ZIP BACKUP EXPORT & RESTORE ----------------
+  const handleDownloadZipBackup = async () => {
+    try {
+      setSaving(true);
+      showToast('Generating full ZIP backup archive with images...', 'success');
+      const zip = new JSZip();
+
+      // 1. Raw database JSON file
+      zip.file('database.json', JSON.stringify(data, null, 2));
+
+      // 2. Folder for standalone extracted images
+      const imgFolder = zip.folder('images');
+      let imgCounter = 1;
+
+      const extractImageAndGetRelPath = (base64OrUrl: string | undefined, prefix: string): string => {
+        if (!base64OrUrl) return '';
+        if (base64OrUrl.startsWith('data:image/')) {
+          const parts = base64OrUrl.split(',');
+          if (parts.length === 2) {
+            const match = parts[0].match(/data:image\/(\w+);base64/);
+            const ext = match ? match[1] : 'png';
+            const filename = `${prefix}_${imgCounter++}.${ext}`;
+            imgFolder?.file(filename, parts[1], { base64: true });
+            return `images/${filename}`;
+          }
+        }
+        return base64OrUrl;
+      };
+
+      // Create manifest copy with extracted relative image paths
+      const dataManifest = JSON.parse(JSON.stringify(data));
+
+      if (dataManifest.settings?.admin_logo) {
+        dataManifest.settings.admin_logo = extractImageAndGetRelPath(
+          dataManifest.settings.admin_logo,
+          'admin_logo'
+        );
+      }
+
+      if (dataManifest.products) {
+        dataManifest.products = dataManifest.products.map((p: any) => ({
+          ...p,
+          image: extractImageAndGetRelPath(p.image, `prod_${p.id}`),
+        }));
+      }
+
+      if (dataManifest.categories) {
+        dataManifest.categories = dataManifest.categories.map((c: any) => ({
+          ...c,
+          image: extractImageAndGetRelPath(c.image, `cat_${c.id}`),
+        }));
+      }
+
+      if (dataManifest.modules) {
+        dataManifest.modules = dataManifest.modules.map((m: any) => ({
+          ...m,
+          image: extractImageAndGetRelPath(m.image, `mod_${m.id}`),
+        }));
+      }
+
+      zip.file('manifest.json', JSON.stringify(dataManifest, null, 2));
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `hyperlocal_full_backup_${new Date().toISOString().slice(0, 10)}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setSaving(false);
+      showToast('Full ZIP Backup downloaded successfully!');
+    } catch (err: any) {
+      setSaving(false);
+      showToast('Failed to create ZIP backup: ' + err.message, 'error');
+    }
+  };
+
+  const handleRestoreZipOrJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.name.endsWith('.zip')) {
+      try {
+        setSaving(true);
+        const zip = await JSZip.loadAsync(file);
+        const dbFile = zip.file('database.json') || zip.file('manifest.json');
+        if (!dbFile) {
+          setSaving(false);
+          return showToast('Invalid ZIP: database.json not found inside zip', 'error');
+        }
+        const jsonStr = await dbFile.async('string');
+        const ok = await onRestoreBackup(jsonStr);
+        setSaving(false);
+        if (ok) showToast('ZIP Backup database successfully restored!');
+        else showToast('Failed to restore database from ZIP.', 'error');
+      } catch (err: any) {
+        setSaving(false);
+        showToast('Error reading ZIP file: ' + err.message, 'error');
+      }
     } else {
-      showToast('PIN must be at least 4 digits', 'error');
+      // Standard JSON file
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          const ok = await onRestoreBackup(content);
+          if (ok) showToast('Database successfully restored!');
+          else showToast('Failed to restore backup.', 'error');
+        } catch {
+          showToast('Invalid backup file format.', 'error');
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -320,13 +551,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return (
       <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-amber-100 text-center animate-in fade-in zoom-in-95">
-          <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-orange-500 text-white rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30">
-            <Lock className="w-8 h-8" />
+          <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-orange-500 text-white rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30 overflow-hidden p-2">
+            {data.settings?.admin_logo ? (
+              <img src={data.settings.admin_logo} alt="Logo" className="w-full h-full object-contain rounded-xl" />
+            ) : (
+              <Lock className="w-8 h-8" />
+            )}
           </div>
 
-          <h2 className="text-xl font-black text-slate-900 mb-1">EzMart Admin Access</h2>
+          <h2 className="text-xl font-black text-slate-900 mb-1">
+            {data.settings?.store_name || 'Admin Suite Access'}
+          </h2>
           <p className="text-xs text-slate-500 font-medium mb-6">
-            Enter 4-digit security PIN to access the EzMart Dashboard suite.
+            Enter security PIN to access the Admin Control Dashboard.
           </p>
 
           <form onSubmit={handleUnlockPIN} className="space-y-4">
@@ -345,7 +582,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               />
               {pinError && (
                 <p className="text-xs text-rose-500 font-bold mt-2">
-                  Incorrect PIN. Please try again or use default (1234).
+                  Incorrect PIN. Try again or use default (1234).
                 </p>
               )}
             </div>
@@ -375,22 +612,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const totalOrdersCount = data.orders.length;
   const totalRevenue = data.orders.reduce((sum, o) => sum + o.total_amount, 0);
 
+  // Filter products for Products screen
+  const filteredProductsList = data.products.filter((p) => {
+    if (adminSearch.trim()) {
+      const q = adminSearch.toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) {
+        return false;
+      }
+    }
+    if (selectedModuleFilter !== 'all' && p.moduleId !== selectedModuleFilter) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className="fixed inset-0 bg-[#f4f2ee] z-50 overflow-y-auto font-sans text-slate-800 selection:bg-orange-500 selection:text-white">
       <div className="min-h-screen flex flex-col md:flex-row max-w-[1600px] mx-auto bg-[#f8f7f4]">
-        {/* SIDEBAR NAVIGATION (EzMart Style) */}
+        {/* SIDEBAR NAVIGATION */}
         <aside className="w-full md:w-64 bg-white border-r border-slate-200/80 p-5 flex flex-col justify-between shrink-0">
           <div>
-            {/* EzMart Brand Logo */}
+            {/* Custom Admin Brand Logo / Header */}
             <div className="flex items-center justify-between mb-8 px-2">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-orange-500 p-1.5 grid grid-cols-2 gap-0.5 shadow-md shadow-orange-500/20">
-                  <div className="bg-white rounded-xs"></div>
-                  <div className="bg-white/80 rounded-xs"></div>
-                  <div className="bg-white/80 rounded-xs"></div>
-                  <div className="bg-white rounded-xs"></div>
+                {data.settings?.admin_logo ? (
+                  <img
+                    src={data.settings.admin_logo}
+                    alt="Admin Logo"
+                    className="w-9 h-9 rounded-xl object-contain bg-slate-50 border border-slate-200 p-1 shadow-xs"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white p-2 flex items-center justify-center shadow-md shadow-orange-500/20">
+                    <Store className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="overflow-hidden">
+                  <span className="text-base font-black text-slate-900 tracking-tight block truncate">
+                    {data.settings?.store_name || 'Admin Suite'}
+                  </span>
+                  <span className="text-[10px] font-bold text-orange-600 block">Control Dashboard</span>
                 </div>
-                <span className="text-xl font-black text-slate-900 tracking-tight">EzMart</span>
               </div>
               <button
                 onClick={onClose}
@@ -406,12 +667,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
                 { id: 'orders', label: 'Orders', icon: PackageCheck, badge: totalOrdersCount },
                 { id: 'products', label: 'Products', icon: ShoppingBag, badge: data.products.length },
-                { id: 'categories', label: 'Categories', icon: Grid },
-                { id: 'modules', label: 'Modules', icon: Layers },
-                { id: 'discounts', label: 'Discounts', icon: Percent },
-                { id: 'integrations', label: 'Integrations', icon: Link2 },
-                { id: 'reports', label: 'Reports & Backup', icon: FileText },
-                { id: 'settings', label: 'Settings', icon: Settings },
+                { id: 'categories', label: 'Categories', icon: Grid, badge: data.categories.length },
+                { id: 'modules', label: 'Modules', icon: Layers, badge: data.modules.length },
+                { id: 'delivery', label: 'Delivery Slots', icon: Clock, badge: deliverySlots.length },
+                { id: 'integrations', label: 'n8n Webhook', icon: Link2 },
+                { id: 'reports', label: 'Backup & Restore', icon: FileArchive },
+                { id: 'settings', label: 'Admin Branding', icon: Settings },
               ].map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -477,19 +738,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                {activeTab === 'dashboard' && 'Dashboard'}
+                {activeTab === 'dashboard' && 'Dashboard Overview'}
                 {activeTab === 'orders' && 'Orders Management'}
-                {activeTab === 'products' && 'Product Inventory'}
-                {activeTab === 'categories' && 'Categories'}
+                {activeTab === 'products' && 'Product Inventory & Direct Uploads'}
+                {activeTab === 'categories' && 'Module-Wise Categories'}
                 {activeTab === 'modules' && 'Modules Configuration'}
-                {activeTab === 'discounts' && 'Offers & Discounts'}
-                {activeTab === 'integrations' && 'Integrations & Webhooks'}
-                {activeTab === 'reports' && 'Reports & Backup'}
-                {activeTab === 'settings' && 'Admin Settings'}
+                {activeTab === 'delivery' && 'Delivery Slots & Express Delivery Settings'}
+                {activeTab === 'integrations' && 'n8n Webhooks Integration'}
+                {activeTab === 'reports' && 'Full ZIP & Database Backup'}
+                {activeTab === 'settings' && 'Admin Branding & Settings'}
               </h1>
             </div>
 
-            {/* Top Search & Profile Controls */}
+            {/* Top Search & Controls */}
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-64">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -497,44 +758,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={adminSearch}
                   onChange={(e) => setAdminSearch(e.target.value)}
-                  placeholder="Search stock, order, etc"
+                  placeholder="Search products, orders..."
                   className="w-full bg-white border border-slate-200/80 rounded-2xl pl-10 pr-4 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 shadow-xs"
                 />
               </div>
 
-              {/* Message Icon */}
-              <button className="w-9 h-9 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors shrink-0 shadow-xs">
-                <MessageSquare className="w-4 h-4" />
-              </button>
-
-              {/* Notification Bell */}
-              <button className="w-9 h-9 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors relative shrink-0 shadow-xs">
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full"></span>
-              </button>
-
-              {/* Profile Card */}
-              <div className="flex items-center gap-2 bg-white border border-slate-200/80 p-1.5 pl-2 rounded-2xl shrink-0 shadow-xs">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
-                  alt="Admin"
-                  className="w-7 h-7 rounded-xl object-cover"
-                />
-                <div className="hidden lg:block text-left pr-1">
-                  <div className="text-xs font-black text-slate-900 leading-tight">Marcus George</div>
-                  <div className="text-[10px] font-bold text-slate-400">Admin</div>
+              {/* Quick Save Status */}
+              {saving && (
+                <div className="bg-orange-50 border border-orange-200 text-orange-600 px-3 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </div>
+              )}
             </div>
           </div>
 
-          {/* ---------------- SCREEN 1: EZMART DASHBOARD OVERVIEW ---------------- */}
+          {/* ---------------- SCREEN 1: DASHBOARD OVERVIEW ---------------- */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
-              {/* TOP STAT CARDS (ROW 1) */}
+              {/* TOP STAT CARDS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Stat 1: Total Sales */}
                 <div className="bg-[#FFF4E8] border border-orange-200/60 p-5 rounded-3xl relative overflow-hidden shadow-xs">
                   <div className="flex justify-between items-start mb-3">
                     <span className="text-xs font-bold text-slate-600">Total Sales</span>
@@ -551,7 +793,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Stat 2: Total Orders */}
                 <div className="bg-white border border-slate-200/80 p-5 rounded-3xl relative overflow-hidden shadow-xs">
                   <div className="flex justify-between items-start mb-3">
                     <span className="text-xs font-bold text-slate-600">Total Orders</span>
@@ -562,397 +803,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="text-2xl font-black text-slate-900 mb-1">
                     {(58375 + totalOrdersCount).toLocaleString()}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-rose-500">
-                    <span className="bg-rose-100 px-1.5 py-0.5 rounded-md text-[11px]">-2.89%</span>
-                    <span className="text-slate-400 font-medium text-[11px]">vs last week</span>
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-600">
+                    <span className="bg-emerald-100 px-1.5 py-0.5 rounded-md text-[11px]">Live Sync</span>
                   </div>
                 </div>
 
-                {/* Stat 3: Total Visitors */}
                 <div className="bg-white border border-slate-200/80 p-5 rounded-3xl relative overflow-hidden shadow-xs">
                   <div className="flex justify-between items-start mb-3">
-                    <span className="text-xs font-bold text-slate-600">Total Visitors</span>
+                    <span className="text-xs font-bold text-slate-600">Active Modules</span>
                     <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
-                      <Users className="w-4 h-4" />
+                      <Layers className="w-4 h-4" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-slate-900 mb-1">237,782</div>
-                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-600">
-                    <span className="bg-emerald-100 px-1.5 py-0.5 rounded-md text-[11px]">+8.02%</span>
-                    <span className="text-slate-400 font-medium text-[11px]">vs last week</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* MAIN ANALYTICS SECTION (ROW 2) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Revenue Analytics Curve (Span 6) */}
-                <div className="lg:col-span-6 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Revenue Analytics</h3>
-                    <div className="bg-[#FF7A00] text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">
-                      <span>Last 8 Days</span>
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Line Chart Graphic */}
-                  <div className="h-44 w-full relative flex flex-col justify-between pt-2">
-                    {/* Y-axis grid labels */}
-                    <div className="absolute inset-0 flex flex-col justify-between text-[10px] font-bold text-slate-300 pointer-events-none">
-                      <div className="border-b border-slate-100 pb-1">16K</div>
-                      <div className="border-b border-slate-100 pb-1">12K</div>
-                      <div className="border-b border-slate-100 pb-1">8K</div>
-                      <div className="border-b border-slate-100 pb-1">4K</div>
-                      <div>0</div>
-                    </div>
-
-                    {/* SVG Curve */}
-                    <div className="relative h-32 w-full z-10 pt-2">
-                      <svg className="w-full h-full overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
-                        {/* Dotted Order Line */}
-                        <path
-                          d="M 0,70 Q 60,85 120,50 T 250,60 T 370,70 T 500,55"
-                          fill="none"
-                          stroke="#FFB870"
-                          strokeWidth="2.5"
-                          strokeDasharray="4 4"
-                        />
-                        {/* Solid Revenue Curve */}
-                        <path
-                          d="M 0,45 Q 60,15 120,25 T 250,20 T 370,30 T 500,25"
-                          fill="none"
-                          stroke="#FF7A00"
-                          strokeWidth="3.5"
-                        />
-                        {/* Peak Dot & Badge */}
-                        <circle cx="250" cy="20" r="5" fill="#FF7A00" stroke="#FFF" strokeWidth="2" />
-                      </svg>
-
-                      {/* Tooltip Badge */}
-                      <div className="absolute left-[46%] top-[2px] -translate-x-1/2 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-md text-[10px] text-center pointer-events-none">
-                        <div className="text-slate-400 text-[9px]">Revenue</div>
-                        <div className="font-black text-slate-900">$14,521</div>
-                      </div>
-                    </div>
-
-                    {/* X-axis date labels */}
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 pt-2 z-10">
-                      <span>12 Aug</span>
-                      <span>13 Aug</span>
-                      <span>14 Aug</span>
-                      <span>15 Aug</span>
-                      <span>16 Aug</span>
-                      <span>17 Aug</span>
-                      <span>18 Aug</span>
-                      <span>19 Aug</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Monthly Target Arc Gauge (Span 3) */}
-                <div className="lg:col-span-3 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs flex flex-col justify-between space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Monthly Target</h3>
-                    <span className="text-slate-400 font-bold text-xs cursor-pointer">•••</span>
-                  </div>
-
-                  {/* Arc Gauge Graphic */}
-                  <div className="relative flex flex-col items-center justify-center my-2">
-                    <svg className="w-36 h-20" viewBox="0 0 100 50">
-                      {/* Background Arch */}
-                      <path
-                        d="M 10,50 A 40,40 0 0,1 90,50"
-                        fill="none"
-                        stroke="#F1EBE4"
-                        strokeWidth="10"
-                        strokeLinecap="round"
-                      />
-                      {/* Progress Arch (85%) */}
-                      <path
-                        d="M 10,50 A 40,40 0 0,1 82,25"
-                        fill="none"
-                        stroke="#FF7A00"
-                        strokeWidth="10"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-
-                    <div className="absolute top-10 text-center">
-                      <div className="text-xl font-black text-slate-900">85%</div>
-                      <div className="text-[10px] font-bold text-emerald-600">+8.02% from last month</div>
-                    </div>
-                  </div>
-
-                  <div className="text-center text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-2xl">
-                    <span className="font-bold text-slate-800">Great Progress! 🎉</span>
-                    <div>Our achievement increased by $200,000; let's reach 100% next month.</div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 bg-[#FFF4E8] p-2.5 rounded-2xl text-center text-[10px]">
-                    <div>
-                      <div className="text-slate-400 font-bold">Target</div>
-                      <div className="font-black text-slate-900 text-xs">$600,000</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400 font-bold">Revenue</div>
-                      <div className="font-black text-slate-900 text-xs">$510,000</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Categories Ring Chart (Span 3) */}
-                <div className="lg:col-span-3 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Top Categories</h3>
-                    <button
-                      onClick={() => setActiveTab('categories')}
-                      className="text-slate-400 hover:text-slate-700 font-bold text-xs"
-                    >
-                      See All
-                    </button>
-                  </div>
-
-                  {/* Donut Chart */}
-                  <div className="relative flex items-center justify-center my-3">
-                    <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-orange-100"
-                        strokeWidth="3.8"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-[#FF7A00]"
-                        strokeDasharray="70, 100"
-                        strokeWidth="3.8"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="absolute text-center">
-                      <div className="text-[9px] font-bold text-slate-400">Total Sales</div>
-                      <div className="text-xs font-black text-slate-900">$3,400,000</div>
-                    </div>
-                  </div>
-
-                  {/* Category Legend */}
-                  <div className="space-y-1.5 text-[11px] font-semibold">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#FF7A00]"></span>
-                        <span className="text-slate-600">Electronics</span>
-                      </div>
-                      <span className="font-bold text-slate-900">$1,200,000</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                        <span className="text-slate-600">Fashion</span>
-                      </div>
-                      <span className="font-bold text-slate-900">$950,000</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-orange-200"></span>
-                        <span className="text-slate-600">Home & Kitchen</span>
-                      </div>
-                      <span className="font-bold text-slate-900">$750,000</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-stone-200"></span>
-                        <span className="text-slate-600">Beauty & Personal</span>
-                      </div>
-                      <span className="font-bold text-slate-900">$500,000</span>
-                    </div>
+                  <div className="text-2xl font-black text-slate-900 mb-1">{data.modules.length}</div>
+                  <div className="text-[11px] text-slate-400 font-medium">
+                    {data.categories.length} Categories configured
                   </div>
                 </div>
               </div>
 
-              {/* BOTTOM SECTION (ROW 3) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Active User (Span 4) */}
-                <div className="lg:col-span-4 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Active User</h3>
-                    <span className="text-slate-400 font-bold text-xs">•••</span>
+              {/* QUICK ACCESS ACTION CARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className="bg-white border border-slate-200 p-5 rounded-3xl text-left hover:border-orange-400 transition-all flex items-center gap-4 group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 group-hover:bg-[#FF7A00] group-hover:text-white transition-colors">
+                    <ShoppingBag className="w-6 h-6" />
                   </div>
-
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-slate-900">2,758</span>
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        +8.02%
-                      </span>
-                    </div>
-                    <div className="text-[10px] font-bold text-slate-400">Users from last month</div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Add / Upload Product</h3>
+                    <p className="text-slate-500 text-xs">Direct image upload & price management</p>
                   </div>
+                </button>
 
-                  {/* Country progress bars */}
-                  <div className="space-y-3 pt-2 text-xs font-bold text-slate-600">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span>United States</span>
-                        <span className="text-slate-900">36%</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#FF7A00] w-[36%] rounded-full"></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span>United Kingdom</span>
-                        <span className="text-slate-900">24%</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-400 w-[24%] rounded-full"></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span>India / Indonesia</span>
-                        <span className="text-slate-900">17.5%</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-orange-300 w-[17.5%] rounded-full"></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span>Russia</span>
-                        <span className="text-slate-900">15%</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-stone-300 w-[15%] rounded-full"></div>
-                      </div>
-                    </div>
+                <button
+                  onClick={() => setActiveTab('categories')}
+                  className="bg-white border border-slate-200 p-5 rounded-3xl text-left hover:border-orange-400 transition-all flex items-center gap-4 group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <Grid className="w-6 h-6" />
                   </div>
-                </div>
-
-                {/* Conversion Rate Funnel (Span 5) */}
-                <div className="lg:col-span-5 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Conversion Rate</h3>
-                    <div className="bg-[#FF7A00] text-white px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1">
-                      <span>This Week</span>
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Module Categories</h3>
+                    <p className="text-slate-500 text-xs">Assign categories & logos per module</p>
                   </div>
+                </button>
 
-                  <div className="grid grid-cols-5 gap-2 pt-2 text-center text-[10px]">
-                    <div>
-                      <div className="text-slate-400 font-medium">Product Views</div>
-                      <div className="font-black text-slate-900 text-xs my-1">25,000</div>
-                      <span className="bg-emerald-50 text-emerald-600 font-extrabold px-1.5 py-0.5 rounded">
-                        +9%
-                      </span>
-                      <div className="h-20 bg-orange-100 rounded-2xl mt-3"></div>
-                    </div>
-
-                    <div>
-                      <div className="text-slate-400 font-medium">Add to Cart</div>
-                      <div className="font-black text-slate-900 text-xs my-1">12,000</div>
-                      <span className="bg-emerald-50 text-emerald-600 font-extrabold px-1.5 py-0.5 rounded">
-                        +6%
-                      </span>
-                      <div className="h-20 bg-orange-200 rounded-2xl mt-3"></div>
-                    </div>
-
-                    <div>
-                      <div className="text-slate-400 font-medium">Proceed Checkout</div>
-                      <div className="font-black text-slate-900 text-xs my-1">8,500</div>
-                      <span className="bg-emerald-50 text-emerald-600 font-extrabold px-1.5 py-0.5 rounded">
-                        +4%
-                      </span>
-                      <div className="h-20 bg-amber-300 rounded-2xl mt-3"></div>
-                    </div>
-
-                    <div>
-                      <div className="text-slate-400 font-medium">Completed Purchases</div>
-                      <div className="font-black text-slate-900 text-xs my-1">6,200</div>
-                      <span className="bg-emerald-50 text-emerald-600 font-extrabold px-1.5 py-0.5 rounded">
-                        +7%
-                      </span>
-                      <div className="h-20 bg-orange-400 rounded-2xl mt-3"></div>
-                    </div>
-
-                    <div>
-                      <div className="text-slate-400 font-medium">Abandoned Carts</div>
-                      <div className="font-black text-slate-900 text-xs my-1">3,000</div>
-                      <span className="bg-rose-50 text-rose-600 font-extrabold px-1.5 py-0.5 rounded">
-                        -5%
-                      </span>
-                      <div className="h-20 bg-[#FF7A00] rounded-2xl mt-3"></div>
-                    </div>
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  className="bg-white border border-slate-200 p-5 rounded-3xl text-left hover:border-orange-400 transition-all flex items-center gap-4 group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <FileArchive className="w-6 h-6" />
                   </div>
-                </div>
-
-                {/* Traffic Sources (Span 3) */}
-                <div className="lg:col-span-3 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-sm text-slate-900">Traffic Sources</h3>
-                    <span className="text-slate-400 font-bold text-xs">•••</span>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Export ZIP Backup</h3>
+                    <p className="text-slate-500 text-xs">Full backup with embedded images</p>
                   </div>
-
-                  {/* Horizontal Stacked Bar */}
-                  <div className="h-6 w-full flex rounded-xl overflow-hidden gap-0.5">
-                    <div className="w-[40%] bg-orange-200"></div>
-                    <div className="w-[30%] bg-amber-300"></div>
-                    <div className="w-[15%] bg-orange-400"></div>
-                    <div className="w-[10%] bg-amber-500"></div>
-                    <div className="w-[5%] bg-[#FF7A00]"></div>
-                  </div>
-
-                  {/* Traffic list */}
-                  <div className="space-y-2 text-xs font-semibold">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-orange-200"></span>
-                        <span className="text-slate-600">Direct Traffic</span>
-                      </div>
-                      <span className="font-black text-slate-900">40%</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-300"></span>
-                        <span className="text-slate-600">Organic Search</span>
-                      </div>
-                      <span className="font-black text-slate-900">30%</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-orange-400"></span>
-                        <span className="text-slate-600">Social Media</span>
-                      </div>
-                      <span className="font-black text-slate-900">15%</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-500"></span>
-                        <span className="text-slate-600">Referral Traffic</span>
-                      </div>
-                      <span className="font-black text-slate-900">10%</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-[#FF7A00]"></span>
-                        <span className="text-slate-600">Email Campaigns</span>
-                      </div>
-                      <span className="font-black text-slate-900">5%</span>
-                    </div>
-                  </div>
-                </div>
+                </button>
               </div>
             </div>
           )}
@@ -987,6 +896,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <div className="text-xs font-bold text-emerald-600 mt-0.5">
                             Customer Phone: +{order.customer_phone}
                           </div>
+                          {order.delivery_slot_time && (
+                            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-xl w-fit mt-1.5 border border-emerald-200">
+                              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>ഡെലിവറി സമയം: {order.delivery_slot_time}</span>
+                              {order.delivery_fee ? (
+                                <span className="text-orange-700 ml-1">(Fee: ₹{order.delivery_fee})</span>
+                              ) : (
+                                <span className="text-emerald-700 ml-1 font-extrabold">(FREE)</span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <select
@@ -1029,68 +949,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {/* ---------------- SCREEN 3: PRODUCTS MANAGEMENT ---------------- */}
           {activeTab === 'products' && (
             <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-base text-slate-900">Manage Store Products</h3>
-                <button
-                  onClick={() => {
-                    setEditingProduct({
-                      name: '',
-                      price: 100,
-                      rating: 4.8,
-                      deliveryTime: '20 min',
-                      categoryId: data.categories[0]?.id || '',
-                      moduleId: data.modules[0]?.id || '',
-                      image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500',
-                      available: true,
-                    });
-                    setIsNewProduct(true);
-                  }}
-                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20"
-                >
-                  <Plus className="w-4 h-4" /> Add Product
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Manage Store Products</h3>
+                  <p className="text-slate-500 text-xs">Direct image upload from computer/phone or image URL</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedModuleFilter}
+                    onChange={(e) => setSelectedModuleFilter(e.target.value)}
+                    className="bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-2xl focus:outline-none"
+                  >
+                    <option value="all">All Modules</option>
+                    {data.modules.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      setEditingProduct({
+                        name: '',
+                        price: 100,
+                        oldPrice: undefined,
+                        rating: 4.8,
+                        deliveryTime: '20 min',
+                        categoryId: data.categories[0]?.id || '',
+                        moduleId: data.modules[0]?.id || '',
+                        image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500',
+                        description: '',
+                        available: true,
+                      });
+                      setIsNewProduct(true);
+                    }}
+                    className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" /> Add Product
+                  </button>
+                </div>
               </div>
 
               {/* Product Edit/Create Form */}
               {editingProduct && (
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
-                  <h4 className="font-black text-orange-600 uppercase tracking-wider">
-                    {isNewProduct ? 'Create New Product' : 'Edit Product'}
-                  </h4>
+                <div className="bg-slate-50 p-5 rounded-3xl border-2 border-orange-300 space-y-4 text-xs animate-in fade-in zoom-in-95 shadow-md">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="font-black text-orange-600 uppercase tracking-wider text-sm flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      {isNewProduct ? 'Create New Product' : 'Edit Product Details'}
+                    </h4>
+                    <button
+                      onClick={() => setEditingProduct(null)}
+                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-slate-600 font-bold mb-1">Product Title</label>
+                      <label className="block text-slate-700 font-bold mb-1">Product Title *</label>
                       <input
                         type="text"
                         value={editingProduct.name || ''}
                         onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                        className="w-full bg-white border border-slate-300 rounded-xl p-2 font-semibold text-slate-800"
+                        placeholder="e.g. Fresh Organic Tomatoes 1kg"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-600 font-bold mb-1">Selling Price (₹)</label>
+                      <label className="block text-slate-700 font-bold mb-1">Selling Price (₹) *</label>
                       <input
                         type="number"
                         value={editingProduct.price || ''}
                         onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
-                        className="w-full bg-white border border-slate-300 rounded-xl p-2 font-semibold text-slate-800"
+                        placeholder="e.g. 120"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-600 font-bold mb-1">Original Price / Strike (₹)</label>
+                      <label className="block text-slate-700 font-bold mb-1">Original Price (Strike) (₹)</label>
                       <input
                         type="number"
                         value={editingProduct.oldPrice || ''}
                         onChange={(e) => setEditingProduct({ ...editingProduct, oldPrice: Number(e.target.value) })}
-                        className="w-full bg-white border border-slate-300 rounded-xl p-2 font-semibold text-slate-800"
+                        placeholder="e.g. 160"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-600 font-bold mb-1">Category</label>
+                      <label className="block text-slate-700 font-bold mb-1">Category & Module *</label>
                       <select
                         value={editingProduct.categoryId || ''}
                         onChange={(e) => {
@@ -1101,37 +1054,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             moduleId: cat?.moduleId || editingProduct.moduleId,
                           });
                         }}
-                        className="w-full bg-white border border-slate-300 rounded-xl p-2 font-semibold text-slate-800"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
                       >
-                        {data.categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
+                        {data.categories.map((c) => {
+                          const m = data.modules.find((mod) => mod.id === c.moduleId);
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {c.name} ({m?.name || 'General'})
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block text-slate-600 font-bold mb-1">Image URL</label>
-                      <input
-                        type="text"
-                        value={editingProduct.image || ''}
-                        onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
-                        className="w-full bg-white border border-slate-300 rounded-xl p-2 font-semibold text-slate-800"
+                      <label className="block text-slate-700 font-bold mb-1">Description</label>
+                      <textarea
+                        rows={2}
+                        value={editingProduct.description || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                        placeholder="Short item description..."
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
                       />
+                    </div>
+
+                    {/* DIRECT IMAGE UPLOAD & URL SECTION */}
+                    <div className="sm:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <label className="block text-slate-800 font-extrabold flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-orange-600" /> Product Image
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* Image Preview Thumbnail */}
+                        <div className="w-24 h-24 rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 relative group">
+                          {editingProduct.image ? (
+                            <img
+                              src={editingProduct.image}
+                              alt="Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-8 h-8 text-slate-300" />
+                          )}
+                        </div>
+
+                        {/* Image Source Inputs */}
+                        <div className="flex-1 space-y-2.5 w-full">
+                          {/* Direct File Upload Button */}
+                          <div>
+                            <label className="bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 font-extrabold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 text-xs transition-colors">
+                              <UploadCloud className="w-4 h-4 text-orange-600" /> Upload Image File
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileRead(file, (base64) => {
+                                      setEditingProduct({ ...editingProduct, image: base64 });
+                                    });
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            <span className="text-[11px] text-slate-400 block mt-1">
+                              Supports PNG, JPG, WebP (Max 10MB)
+                            </span>
+                          </div>
+
+                          {/* Image URL Input */}
+                          <div>
+                            <input
+                              type="text"
+                              value={editingProduct.image || ''}
+                              onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                              placeholder="Or paste Image URL (https://...)"
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px] text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       onClick={() => setEditingProduct(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700"
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSaveProduct}
-                      className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#FF7A00] text-white"
+                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#FF7A00] text-white hover:bg-orange-600 shadow-md shadow-orange-500/20"
                     >
                       Save Product
                     </button>
@@ -1141,179 +1157,690 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Product List */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {data.products.map((prod) => (
-                  <div
-                    key={prod.id}
-                    className="border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img src={prod.image} alt="" className="w-12 h-12 rounded-xl object-cover" />
-                      <div>
-                        <div className="font-extrabold text-slate-900 line-clamp-1">{prod.name}</div>
-                        <div className="text-orange-600 font-black text-sm">₹{prod.price}</div>
-                      </div>
-                    </div>
+                {filteredProductsList.map((prod) => {
+                  const cat = data.categories.find((c) => c.id === prod.categoryId);
+                  const mod = data.modules.find((m) => m.id === prod.moduleId);
 
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => {
-                          setEditingProduct(prod);
-                          setIsNewProduct(false);
-                        }}
-                        className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(prod.id)}
-                        className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ---------------- SCREEN 4: CATEGORIES & MODULES ---------------- */}
-          {(activeTab === 'categories' || activeTab === 'modules') && (
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-base text-slate-900">
-                  {activeTab === 'categories' ? 'Store Categories' : 'Homepage Modules Configuration'}
-                </h3>
-                {activeTab === 'categories' ? (
-                  <button
-                    onClick={() => {
-                      setEditingCategory({
-                        name: '',
-                        icon: '🏷️',
-                        moduleId: data.modules[0]?.id || '',
-                      });
-                      setIsNewCategory(true);
-                    }}
-                    className="bg-[#FF7A00] text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Add Category
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setEditingModule({
-                        name: '',
-                        description: '',
-                        time: '20-30 min',
-                        icon: '📦',
-                        bgColor: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)',
-                        size: 'medium',
-                      });
-                      setIsNewModule(true);
-                    }}
-                    className="bg-[#FF7A00] text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Add Module
-                  </button>
-                )}
-              </div>
-
-              {/* List Categories */}
-              {activeTab === 'categories' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {data.categories.map((cat) => {
-                    const mod = data.modules.find((m) => m.id === cat.moduleId);
-                    return (
-                      <div
-                        key={cat.id}
-                        className="border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-2xl">{cat.icon}</span>
-                          <div>
-                            <div className="font-extrabold text-slate-900">{cat.name}</div>
-                            <div className="text-[10px] font-bold text-orange-600">{mod?.name || 'General'}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => {
-                              setEditingCategory(cat);
-                              setIsNewCategory(false);
-                            }}
-                            className="p-2 bg-blue-50 text-blue-600 rounded-xl"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-2 bg-rose-50 text-rose-600 rounded-xl"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* List Modules */}
-              {activeTab === 'modules' && (
-                <div className="space-y-2.5">
-                  {data.modules.map((mod) => (
+                  return (
                     <div
-                      key={mod.id}
-                      className="border border-slate-200/80 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs bg-slate-50/50"
+                      key={prod.id}
+                      className="border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">{mod.icon}</span>
-                        <div>
-                          <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                            <span>{mod.name}</span>
-                            <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold uppercase">
-                              {mod.size}
-                            </span>
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <img src={prod.image} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200 bg-white" />
+                        <div className="min-w-0">
+                          <div className="font-extrabold text-slate-900 truncate">{prod.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-orange-600 font-black text-sm">₹{prod.price}</span>
+                            {prod.oldPrice && (
+                              <span className="line-through text-slate-400 text-[11px]">₹{prod.oldPrice}</span>
+                            )}
                           </div>
-                          <div className="text-slate-500 font-medium text-[11px]">{mod.description}</div>
+                          <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                            {cat?.name || 'Category'} • <span className="font-bold text-slate-700">{mod?.name || 'Module'}</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 shrink-0 ml-2">
                         <button
                           onClick={() => {
-                            setEditingModule(mod);
-                            setIsNewModule(false);
+                            setEditingProduct(prod);
+                            setIsNewProduct(false);
                           }}
-                          className="p-2 bg-blue-50 text-blue-600 rounded-xl"
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          title="Edit Product"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDeleteModule(mod.id)}
-                          className="p-2 bg-rose-50 text-rose-600 rounded-xl"
+                          onClick={() => handleDeleteProduct(prod.id)}
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          title="Delete Product"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* ---------------- SCREEN 5: INTEGRATIONS (N8N WEBHOOK) ---------------- */}
+          {/* ---------------- SCREEN 4: CATEGORIES MANAGEMENT (MODULE-WISE) ---------------- */}
+          {activeTab === 'categories' && (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Module-Wise Categories</h3>
+                  <p className="text-slate-500 text-xs">Add, edit, delete categories & category logo images per module</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setEditingCategory({
+                      name: '',
+                      icon: '🏷️',
+                      image: '',
+                      moduleId: data.modules[0]?.id || '',
+                    });
+                    setIsNewCategory(true);
+                  }}
+                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> Add Category
+                </button>
+              </div>
+
+              {/* Category Edit/Create Form Modal */}
+              {editingCategory && (
+                <div className="bg-slate-50 p-5 rounded-3xl border-2 border-emerald-400 space-y-4 text-xs animate-in fade-in zoom-in-95 shadow-md">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="font-black text-emerald-700 uppercase tracking-wider text-sm flex items-center gap-2">
+                      <Grid className="w-4 h-4" />
+                      {isNewCategory ? 'Create New Category' : 'Edit Category Details'}
+                    </h4>
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Category Name *</label>
+                      <input
+                        type="text"
+                        value={editingCategory.name || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                        placeholder="e.g. Fresh Vegetables"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Module Association *</label>
+                      <select
+                        value={editingCategory.moduleId || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, moduleId: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      >
+                        {data.modules.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Category Icon / Emoji</label>
+                      <input
+                        type="text"
+                        value={editingCategory.icon || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, icon: e.target.value })}
+                        placeholder="e.g. 🥬 or 🍕"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {/* DIRECT CATEGORY LOGO UPLOAD & URL */}
+                    <div className="sm:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <label className="block text-slate-800 font-extrabold flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-emerald-600" /> Category Logo Image
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* Preview */}
+                        <div className="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+                          {editingCategory.image ? (
+                            <img src={editingCategory.image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-3xl">{editingCategory.icon || '🏷️'}</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-2.5 w-full">
+                          <div>
+                            <label className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-extrabold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 text-xs transition-colors">
+                              <UploadCloud className="w-4 h-4 text-emerald-600" /> Upload Category Logo
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileRead(file, (base64) => {
+                                      setEditingCategory({ ...editingCategory, image: base64 });
+                                    });
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={editingCategory.image || ''}
+                            onChange={(e) => setEditingCategory({ ...editingCategory, image: e.target.value })}
+                            placeholder="Or paste Logo Image URL (https://...)"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px] text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveCategory}
+                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 shadow-md"
+                    >
+                      Save Category
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Category List grouped/displayed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.categories.map((cat) => {
+                  const mod = data.modules.find((m) => m.id === cat.moduleId);
+                  const prodCount = data.products.filter((p) => p.categoryId === cat.id).length;
+
+                  return (
+                    <div
+                      key={cat.id}
+                      className="border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                          {cat.image ? (
+                            <img src={cat.image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-2xl">{cat.icon}</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-slate-900 text-sm">{cat.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">
+                              Module: {mod?.name || 'General'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {prodCount} items
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            setIsNewCategory(false);
+                          }}
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          title="Edit Category"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN 5: MODULES MANAGEMENT ---------------- */}
+          {activeTab === 'modules' && (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Homepage Modules Configuration</h3>
+                  <p className="text-slate-500 text-xs">Add, edit, delete modules & customize module logo images</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setEditingModule({
+                      name: '',
+                      description: '',
+                      time: '20-30 min',
+                      icon: '📦',
+                      image: '',
+                      bgColor: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)',
+                      size: 'medium',
+                      badge: '',
+                    });
+                    setIsNewModule(true);
+                  }}
+                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> Add Module
+                </button>
+              </div>
+
+              {/* Module Edit Form Modal */}
+              {editingModule && (
+                <div className="bg-slate-50 p-5 rounded-3xl border-2 border-purple-400 space-y-4 text-xs animate-in fade-in zoom-in-95 shadow-md">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="font-black text-purple-700 uppercase tracking-wider text-sm flex items-center gap-2">
+                      <Layers className="w-4 h-4" />
+                      {isNewModule ? 'Create New Homepage Module' : 'Edit Module Details'}
+                    </h4>
+                    <button
+                      onClick={() => setEditingModule(null)}
+                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Module Title *</label>
+                      <input
+                        type="text"
+                        value={editingModule.name || ''}
+                        onChange={(e) => setEditingModule({ ...editingModule, name: e.target.value })}
+                        placeholder="e.g. Supermarket"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Delivery Time Tag</label>
+                      <input
+                        type="text"
+                        value={editingModule.time || ''}
+                        onChange={(e) => setEditingModule({ ...editingModule, time: e.target.value })}
+                        placeholder="e.g. 15-20 min"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Module Card Size</label>
+                      <select
+                        value={editingModule.size || 'medium'}
+                        onChange={(e) => setEditingModule({ ...editingModule, size: e.target.value as ModuleSize })}
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                      >
+                        <option value="large">Large (Full Width Banner)</option>
+                        <option value="medium">Medium (Standard Card)</option>
+                        <option value="small">Small (Compact Grid)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Badge / Tag Text</label>
+                      <input
+                        type="text"
+                        value={editingModule.badge || ''}
+                        onChange={(e) => setEditingModule({ ...editingModule, badge: e.target.value })}
+                        placeholder="e.g. Hot, 20% OFF"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-700 font-bold mb-1">Short Subtitle / Description</label>
+                      <input
+                        type="text"
+                        value={editingModule.description || ''}
+                        onChange={(e) => setEditingModule({ ...editingModule, description: e.target.value })}
+                        placeholder="e.g. Fresh, daily & trusted essentials"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+
+                    {/* DIRECT MODULE LOGO UPLOAD & URL */}
+                    <div className="sm:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <label className="block text-slate-800 font-extrabold flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-purple-600" /> Module Logo / Illustration Image
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* Preview */}
+                        <div className="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+                          {editingModule.image ? (
+                            <img src={editingModule.image} alt="" className="w-full h-full object-contain" />
+                          ) : (
+                            <span className="text-3xl">{editingModule.icon || '📦'}</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-2.5 w-full">
+                          <div>
+                            <label className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 font-extrabold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 text-xs transition-colors">
+                              <UploadCloud className="w-4 h-4 text-purple-600" /> Upload Module Logo
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileRead(file, (base64) => {
+                                      setEditingModule({ ...editingModule, image: base64 });
+                                    });
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={editingModule.image || ''}
+                            onChange={(e) => setEditingModule({ ...editingModule, image: e.target.value })}
+                            placeholder="Or paste Logo Image URL (https://...)"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px] text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setEditingModule(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveModule}
+                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+                    >
+                      Save Module
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Module List */}
+              <div className="space-y-3">
+                {data.modules.map((mod) => {
+                  const catCount = data.categories.filter((c) => c.moduleId === mod.id).length;
+
+                  return (
+                    <div
+                      key={mod.id}
+                      className="border border-slate-200/80 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                          {mod.image ? (
+                            <img src={mod.image} alt="" className="w-full h-full object-contain p-1" />
+                          ) : (
+                            <span className="text-2xl">{mod.icon}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                            <span className="truncate">{mod.name}</span>
+                            <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
+                              {mod.size}
+                            </span>
+                          </div>
+                          <div className="text-slate-500 font-medium text-[11px] truncate">
+                            {mod.description || 'No description'} • <span className="font-bold text-slate-700">{catCount} categories</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingModule(mod);
+                            setIsNewModule(false);
+                          }}
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          title="Edit Module"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteModule(mod.id)}
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          title="Delete Module"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN: DELIVERY SLOTS MANAGEMENT ---------------- */}
+          {activeTab === 'delivery' && (
+            <div className="space-y-6">
+              {/* Express Delivery Fee Banner / Settings */}
+              <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-orange-500" /> Express / Urgent Delivery Fee (അർജന്റ് ഡെലിവറി)
+                    </h3>
+                    <p className="text-slate-500 text-xs">
+                      Set custom delivery charge for customers requesting immediate quick delivery.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={expressFeeInput}
+                        onChange={(e) => setExpressFeeInput(Number(e.target.value))}
+                        className="w-28 pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="40"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSaveExpressFee}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-orange-600/20 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" /> Save Fee
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Slots Config Card */}
+              <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-emerald-600" /> Scheduled Batch Delivery Time Slots
+                    </h3>
+                    <p className="text-slate-500 text-xs">
+                      Configure fixed delivery time slots (e.g. 11:00 AM, 12:00 PM Free Delivery Batch, 1:00 PM, 3:00 PM, 5:00 PM).
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingSlot({ time: '', label: '', fee: 0, isActive: true });
+                      setIsNewSlot(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Add Delivery Time Slot
+                  </button>
+                </div>
+
+                {/* Slot Editor Form Modal / Drawer */}
+                {editingSlot && (
+                  <div className="bg-emerald-50/60 border border-emerald-200/80 p-5 rounded-2xl space-y-4 animate-in fade-in">
+                    <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                      {isNewSlot ? '➕ Add New Delivery Time Slot' : '✏️ Edit Delivery Time Slot'}
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Time Slot Name / Hour *</label>
+                        <input
+                          type="text"
+                          value={editingSlot.time || ''}
+                          onChange={(e) => setEditingSlot({ ...editingSlot, time: e.target.value })}
+                          placeholder="E.g. 12:00 PM or 11:00 AM - 12:00 PM"
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Description / Batch Label</label>
+                        <input
+                          type="text"
+                          value={editingSlot.label || ''}
+                          onChange={(e) => setEditingSlot({ ...editingSlot, label: e.target.value })}
+                          placeholder="E.g. Free Delivery Batch (ഉച്ചക്ക് 12 മണി ബാച്ച്)"
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Delivery Fee (₹) (0 for Free)</label>
+                        <input
+                          type="number"
+                          value={editingSlot.fee ?? 0}
+                          onChange={(e) => setEditingSlot({ ...editingSlot, fee: Number(e.target.value) })}
+                          placeholder="0"
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-6">
+                        <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={editingSlot.isActive !== false}
+                            onChange={(e) => setEditingSlot({ ...editingSlot, isActive: e.target.checked })}
+                            className="w-4 h-4 accent-emerald-600 rounded"
+                          />
+                          <span>Active / Enable this Slot</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        onClick={() => setEditingSlot(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveSlot}
+                        className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 shadow-md cursor-pointer"
+                      >
+                        Save Time Slot
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Delivery Slots List Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {deliverySlots.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className={`border p-4 rounded-2xl space-y-2.5 transition-all ${
+                        slot.isActive
+                          ? 'border-emerald-200 bg-white shadow-xs'
+                          : 'border-slate-200 bg-slate-100 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-black text-slate-900 text-sm">
+                          <Clock className="w-4 h-4 text-emerald-600" />
+                          <span>{slot.time}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                            slot.fee === 0
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {slot.fee === 0 ? 'FREE' : `₹${slot.fee}`}
+                        </span>
+                      </div>
+
+                      <p className="text-xs font-semibold text-slate-600 line-clamp-1">{slot.label}</p>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <button
+                          onClick={() => handleToggleSlotActive(slot.id)}
+                          className={`text-[11px] font-extrabold px-2.5 py-1 rounded-xl transition-colors cursor-pointer ${
+                            slot.isActive
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                          }`}
+                        >
+                          {slot.isActive ? 'Active' : 'Disabled'}
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingSlot(slot);
+                              setIsNewSlot(false);
+                            }}
+                            className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSlot(slot.id)}
+                            className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN 6: INTEGRATIONS (N8N) ---------------- */}
           {activeTab === 'integrations' && (
             <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs text-xs">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
                 <Link2 className="w-5 h-5 text-orange-600" /> n8n WhatsApp Webhook Integration
               </h3>
 
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">n8n Webhook URL</label>
+                  <label className="block text-slate-700 font-extrabold mb-1">n8n Webhook Endpoint URL</label>
                   <input
                     type="text"
                     value={webhookUrl}
@@ -1326,14 +1853,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSaveWebhook}
-                    className="bg-[#FF7A00] text-white font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20"
+                    className="bg-[#FF7A00] text-white font-extrabold px-5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20"
                   >
                     <Save className="w-4 h-4" /> Save Webhook URL
                   </button>
 
                   <button
                     onClick={handleTestWebhook}
-                    className="bg-slate-800 text-white font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-1.5"
+                    className="bg-slate-800 text-white font-extrabold px-5 py-2.5 rounded-xl flex items-center gap-1.5"
                   >
                     <RefreshCw className="w-4 h-4" /> Test Trigger
                   </button>
@@ -1342,75 +1869,150 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           )}
 
-          {/* ---------------- SCREEN 6: REPORTS & BACKUP ---------------- */}
+          {/* ---------------- SCREEN 7: FULL ZIP & DATABASE BACKUP ---------------- */}
           {activeTab === 'reports' && (
             <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs text-xs">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-orange-600" /> Store Reports & Backup System
+                <FileArchive className="w-5 h-5 text-orange-600" /> Full ZIP Backup & Database System
               </h3>
+              <p className="text-slate-500 text-xs">
+                Export and restore full store backups including database records (products, orders, modules, settings) and all uploaded image files in ZIP format.
+              </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                {/* Export ZIP Backup */}
+                <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 flex flex-col justify-between space-y-4">
                   <div>
-                    <h4 className="font-black text-slate-900 text-sm mb-1">Download Store Backup</h4>
-                    <p className="text-slate-500 text-xs mb-4">
-                      Export full database (products, orders, modules, settings) into a single JSON file.
+                    <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mb-3">
+                      <FileArchive className="w-5 h-5" />
+                    </div>
+                    <h4 className="font-black text-slate-900 text-sm mb-1">Export Complete ZIP Archive</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      Creates a bundled `.zip` file containing `database.json` and a dedicated `images/` directory with all uploaded product, category, module, and logo image assets.
                     </p>
                   </div>
 
                   <button
-                    onClick={handleDownloadBackup}
-                    className="w-full bg-[#FF7A00] text-white font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+                    onClick={handleDownloadZipBackup}
+                    className="w-full bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold py-3 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 transition-all"
                   >
-                    <Download className="w-4 h-4" /> Export Backup JSON
+                    <Download className="w-4 h-4" /> Export ZIP Backup
                   </button>
                 </div>
 
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                {/* Restore Database */}
+                <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 flex flex-col justify-between space-y-4">
                   <div>
-                    <h4 className="font-black text-slate-900 text-sm mb-1">Restore Database</h4>
-                    <p className="text-slate-500 text-xs mb-4">
-                      Upload JSON backup file to overwrite/restore all store catalog and configuration data.
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <h4 className="font-black text-slate-900 text-sm mb-1">Restore Database (ZIP / JSON)</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      Upload a `.zip` or `.json` backup archive to restore store catalog, modules, categories, products, orders, and custom settings.
                     </p>
                   </div>
 
-                  <label className="w-full bg-slate-800 text-white font-extrabold py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer text-center">
-                    <Upload className="w-4 h-4" /> Upload Backup File
-                    <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                  <label className="w-full bg-slate-800 hover:bg-slate-900 text-white font-extrabold py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer text-center transition-all">
+                    <Upload className="w-4 h-4" /> Upload & Restore File
+                    <input
+                      type="file"
+                      accept=".zip,.json"
+                      onChange={handleRestoreZipOrJson}
+                      className="hidden"
+                    />
                   </label>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ---------------- SCREEN 7: SETTINGS ---------------- */}
+          {/* ---------------- SCREEN 8: ADMIN BRANDING & SETTINGS ---------------- */}
           {activeTab === 'settings' && (
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs text-xs">
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-5 shadow-xs text-xs">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-orange-600" /> Admin Security & Store Settings
+                <Settings className="w-5 h-5 text-orange-600" /> Admin Branding & Store Customization
               </h3>
 
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4 max-w-md">
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-5 max-w-xl">
+                {/* Store Name Customization */}
                 <div>
-                  <label className="block text-slate-800 font-extrabold mb-1">Change Admin Security PIN</label>
-                  <p className="text-slate-500 text-[11px] mb-2">
-                    Set a secret 4-8 digit PIN code to restrict unauthorized access to Admin Dashboard.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      maxLength={8}
-                      value={newPinInput}
-                      onChange={(e) => setNewPinInput(e.target.value)}
-                      className="bg-white border border-slate-300 font-extrabold rounded-xl px-3 py-2 text-slate-900 text-center w-36 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                    <button
-                      onClick={handleSavePin}
-                      className="bg-[#FF7A00] text-white font-extrabold px-4 py-2 rounded-xl"
-                    >
-                      Save PIN
-                    </button>
+                  <label className="block text-slate-800 font-extrabold mb-1">Store / Business Name</label>
+                  <p className="text-slate-500 text-[11px] mb-2">Displayed in header & admin dashboard</p>
+                  <input
+                    type="text"
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    placeholder="e.g. EzMart Supermarket"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-orange-500 outline-none"
+                  />
+                </div>
+
+                {/* Admin Logo Customization */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                  <label className="block text-slate-800 font-extrabold flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-orange-600" /> Admin Panel Logo Image
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+                      {adminLogo ? (
+                        <img src={adminLogo} alt="Logo" className="w-full h-full object-contain" />
+                      ) : (
+                        <Store className="w-8 h-8 text-slate-300" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2.5 w-full">
+                      <div>
+                        <label className="bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 font-extrabold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 text-xs transition-colors">
+                          <UploadCloud className="w-4 h-4 text-orange-600" /> Upload Admin Logo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleImageFileRead(file, (base64) => {
+                                  setAdminLogo(base64);
+                                });
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      <input
+                        type="text"
+                        value={adminLogo}
+                        onChange={(e) => setAdminLogo(e.target.value)}
+                        placeholder="Or paste Logo Image URL (https://...)"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px] text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+                    </div>
                   </div>
+                </div>
+
+                {/* PIN Code */}
+                <div>
+                  <label className="block text-slate-800 font-extrabold mb-1">Admin Security PIN</label>
+                  <p className="text-slate-500 text-[11px] mb-2">Set 4-8 digit passcode to lock Admin suite</p>
+                  <input
+                    type="password"
+                    maxLength={8}
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value)}
+                    className="bg-white border border-slate-300 font-extrabold rounded-xl px-3 py-2 text-slate-900 text-center w-36 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveSettings}
+                    className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold px-6 py-3 rounded-2xl flex items-center gap-2 shadow-md shadow-orange-500/20 transition-all text-xs"
+                  >
+                    <Save className="w-4 h-4" /> Save Admin Branding & Settings
+                  </button>
                 </div>
               </div>
             </div>
