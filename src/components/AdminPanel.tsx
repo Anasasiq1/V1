@@ -54,6 +54,12 @@ import {
   ExternalLink,
   Share2,
   Smartphone,
+  ShieldCheck,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Wallet,
+  Copy,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -93,6 +99,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'reports'
     | 'settings'
     | 'pwa'
+    | 'whatsapp'
+    | 'payments'
   >('dashboard');
 
   const [saving, setSaving] = useState(false);
@@ -151,6 +159,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pwaIcon, setPwaIcon] = useState(data.settings?.pwa_icon || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80');
   const [pwaThemeColor, setPwaThemeColor] = useState(data.settings?.pwa_theme_color || '#059669');
   const [pwaBgColor, setPwaBgColor] = useState(data.settings?.pwa_bg_color || '#f8fafc');
+
+  // WhatsApp Routing Settings State
+  const [sendToCustomerWhatsapp, setSendToCustomerWhatsapp] = useState<boolean>(data.settings?.send_to_customer_whatsapp !== false);
+  const [whatsappMode, setWhatsappMode] = useState<'both' | 'customer_only' | 'store_only'>(data.settings?.whatsapp_mode || 'both');
+  const [customerWaAutoOpen, setCustomerWaAutoOpen] = useState<boolean>(data.settings?.customer_wa_auto_open !== false);
+  const [storeWhatsappPhone, setStoreWhatsappPhone] = useState(data.settings?.store_whatsapp_phone || data.settings?.store_phone || '919876543210');
+
+  const handleSaveWhatsappSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const updatedSettings = {
+      ...data.settings,
+      send_to_customer_whatsapp: sendToCustomerWhatsapp,
+      whatsapp_mode: whatsappMode,
+      customer_wa_auto_open: customerWaAutoOpen,
+      store_whatsapp_phone: storeWhatsappPhone,
+    };
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    showToast('WhatsApp Order Routing & Customer settings saved!');
+  };
+
+  // Payment Options & UPI Settings State
+  const [codEnabled, setCodEnabled] = useState<boolean>(data.settings?.cod_enabled !== false);
+  const [upiEnabled, setUpiEnabled] = useState<boolean>(data.settings?.upi_enabled !== false);
+  const [walletEnabled, setWalletEnabled] = useState<boolean>(data.settings?.wallet_enabled !== false);
+  const [walletDemoBalance, setWalletDemoBalance] = useState<number>(data.settings?.wallet_demo_balance ?? 500);
+  const [upiId, setUpiId] = useState(data.settings?.upi_id || '9876543210@paytm');
+  const [upiPhone, setUpiPhone] = useState(data.settings?.upi_phone || '9876543210');
+  const [upiPayeeName, setUpiPayeeName] = useState(data.settings?.upi_payee_name || data.settings?.store_name || 'Hyperlocal Store');
+  const [upiQrImage, setUpiQrImage] = useState(data.settings?.upi_qr_image || 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=500&auto=format&fit=crop&q=80');
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const updatedSettings = {
+      ...data.settings,
+      cod_enabled: codEnabled,
+      upi_enabled: upiEnabled,
+      wallet_enabled: walletEnabled,
+      wallet_demo_balance: walletDemoBalance,
+      upi_id: upiId,
+      upi_phone: upiPhone,
+      upi_payee_name: upiPayeeName,
+      upi_qr_image: upiQrImage,
+    };
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    showToast('Payment Options, Wallet Gateway & Personal UPI configuration saved successfully!');
+  };
 
   // WhatsApp Notification State
   const [whatsappModalOrder, setWhatsappModalOrder] = useState<{
@@ -461,6 +519,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const statusEmojis: Record<OrderStatus, string> = {
       'Order Placed': '📦',
       'Preparing': '🍳',
+      'Packing': '📦',
       'Out for Delivery': '🛵',
       'Delivered': '🎉',
       'Cancelled': '❌',
@@ -469,6 +528,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const statusTexts: Record<OrderStatus, string> = {
       'Order Placed': 'Your order has been confirmed and received.',
       'Preparing': 'Your order is currently being prepared with care.',
+      'Packing': 'Your order is being packed and made ready for dispatch.',
       'Out for Delivery': 'Your order is out for delivery and on its way to your address!',
       'Delivered': 'Your order has been successfully delivered. Thank you for shopping with us!',
       'Cancelled': 'Your order has been cancelled. Please contact customer support if you have questions.',
@@ -822,6 +882,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 { id: 'modules', label: 'Modules', icon: Layers, badge: data.modules.length },
                 { id: 'delivery', label: 'Delivery Slots', icon: Clock, badge: deliverySlots.length },
                 { id: 'pwa', label: 'PWA Mobile App', icon: Smartphone, badge: 'PWA' },
+                { id: 'whatsapp', label: 'Customer WhatsApp', icon: MessageCircle, badge: 'WhatsApp' },
+                { id: 'payments', label: 'Payment Options', icon: CreditCard, badge: 'COD / UPI' },
                 { id: 'integrations', label: 'n8n Webhook', icon: Link2 },
                 { id: 'reports', label: 'Backup & Restore', icon: FileArchive },
                 { id: 'settings', label: 'Admin Branding', icon: Settings },
@@ -1077,6 +1139,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               )}
                             </div>
                           )}
+
+                          {/* Payment Method Badge */}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                              order.payment_method === 'upi_online'
+                                ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                : 'bg-slate-200 text-slate-800'
+                            }`}>
+                              <CreditCard className="w-3 h-3 text-emerald-600" />
+                              <span>{order.payment_method === 'upi_online' ? 'Online Payment (UPI/GPay)' : 'Cash on Delivery (COD)'}</span>
+                            </span>
+
+                            {order.payment_transaction_id && (
+                              <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                Ref/UTR: {order.payment_transaction_id}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Status Select & Quick WhatsApp Trigger Button */}
@@ -2571,6 +2651,518 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">
                       ℹ️ This installation prompt will automatically pop up when customers open your website on mobile or desktop browsers until the app is installed.
                     </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN 10: CUSTOMER WHATSAPP ORDER ROUTING ---------------- */}
+          {activeTab === 'whatsapp' && (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-6 shadow-xs text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-emerald-600" />
+                    Customer WhatsApp Order Receipt & Messaging Settings
+                  </h3>
+                  <p className="text-slate-500 text-xs">
+                    കസ്റ്റമർ ഓർഡർ സബ്മിറ്റ് ചെയ്യുമ്പോൾ ഓർഡർ വിവരങ്ങൾ കസ്റ്റമറിന്റെ വാട്സാപ്പിലേക്ക് അയക്കുന്ന സംവിധാനം ഇവിടെ മാനേജ് ചെയ്യാം.
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 text-emerald-800 text-xs font-black px-3.5 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5 shrink-0">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>WhatsApp Business Ready</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Controls Form */}
+                <form onSubmit={handleSaveWhatsappSettings} className="lg:col-span-7 space-y-5 bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                  {/* Master Toggle */}
+                  <div className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    sendToCustomerWhatsapp 
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm' 
+                      : 'bg-rose-50 border-rose-200 text-rose-900'
+                  }`}>
+                    <div className="space-y-0.5">
+                      <div className="font-black text-sm flex items-center gap-2">
+                        <MessageCircle className={`w-4 h-4 ${sendToCustomerWhatsapp ? 'text-emerald-600' : 'text-rose-600'}`} />
+                        <span>Customer WhatsApp Receipt System</span>
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          sendToCustomerWhatsapp ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                        }`}>
+                          {sendToCustomerWhatsapp ? 'ACTIVE' : 'DISABLED'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-medium text-slate-600">
+                        {sendToCustomerWhatsapp
+                          ? 'കസ്റ്റമർ ഓർഡർ കൺഫോം ചെയ്യുമ്പോൾ ഓർഡർ വിവരങ്ങൾ അവരുടെ വാട്സാപ്പിലേക്ക് ഡയറക്ട് അയക്കും.'
+                          : 'Customer WhatsApp receipt generation is turned off.'}
+                      </p>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={sendToCustomerWhatsapp}
+                        onChange={(e) => setSendToCustomerWhatsapp(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Mode Selector Cards */}
+                  <div className="space-y-2">
+                    <label className="block text-slate-800 font-extrabold text-xs">
+                      WhatsApp Order Target Routing Mode (വാട്സാപ്പ് റൂട്ടിംഗ് രീതി) *
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {/* Option 1: Both */}
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappMode('both')}
+                        className={`p-3 rounded-2xl border text-start transition-all cursor-pointer ${
+                          whatsappMode === 'both'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20 font-black'
+                            : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs mb-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Both (രണ്ടും)</span>
+                        </div>
+                        <p className={`text-[10px] leading-tight font-medium ${whatsappMode === 'both' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                          Customer + Store Owner order copies
+                        </p>
+                      </button>
+
+                      {/* Option 2: Customer Only */}
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappMode('customer_only')}
+                        className={`p-3 rounded-2xl border text-start transition-all cursor-pointer ${
+                          whatsappMode === 'customer_only'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20 font-black'
+                            : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs mb-1">
+                          <Smartphone className="w-3.5 h-3.5" />
+                          <span>Customer Only</span>
+                        </div>
+                        <p className={`text-[10px] leading-tight font-medium ${whatsappMode === 'customer_only' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                          Send receipt to customer WhatsApp
+                        </p>
+                      </button>
+
+                      {/* Option 3: Store Admin Only */}
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappMode('store_only')}
+                        className={`p-3 rounded-2xl border text-start transition-all cursor-pointer ${
+                          whatsappMode === 'store_only'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20 font-black'
+                            : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs mb-1">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Store Only</span>
+                        </div>
+                        <p className={`text-[10px] leading-tight font-medium ${whatsappMode === 'store_only' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                          Send order to Store WhatsApp
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Auto Open Toggle */}
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="font-extrabold text-slate-800 block text-xs">
+                        Auto-Launch WhatsApp App on Order Submit
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block">
+                        കസ്റ്റമർ "Confirm Order" അമർത്തിയാൽ വാട്സാപ്പ് ആപ്പ് തനിയെ തുറക്കുക
+                      </span>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={customerWaAutoOpen}
+                        onChange={(e) => setCustomerWaAutoOpen(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Store Admin WhatsApp Number */}
+                  <div>
+                    <label className="block text-slate-800 font-extrabold mb-1">
+                      Store Owner WhatsApp Phone Number (കടയുടമയുടെ വാട്സാപ്പ് നമ്പർ) *
+                    </label>
+                    <input
+                      type="text"
+                      value={storeWhatsappPhone}
+                      onChange={(e) => setStoreWhatsappPhone(e.target.value)}
+                      placeholder="e.g. 919876543210"
+                      required
+                      className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Enter full phone number with country code (e.g. 91 for India)
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-xs cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{saving ? 'Saving...' : 'Save WhatsApp Settings'}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Simulated WhatsApp Chat Message Preview */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="bg-[#0b141a] text-white p-4 rounded-3xl space-y-3 border border-slate-800 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center font-black text-xs">
+                          {storeName.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-white">{storeName}</h4>
+                          <span className="text-[9px] text-emerald-400 font-medium">WhatsApp Business Official</span>
+                        </div>
+                      </div>
+                      <span className="bg-emerald-950 text-emerald-400 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-800">
+                        Live Message Preview
+                      </span>
+                    </div>
+
+                    {/* Chat Bubble */}
+                    <div className="bg-[#202c33] text-slate-100 rounded-2xl p-3.5 space-y-2 text-[11px] shadow-md border border-slate-700/50 font-sans leading-relaxed">
+                      <div className="font-bold text-emerald-400">
+                        🛍️ *ORDER CONFIRMATION - {storeName}*
+                      </div>
+
+                      <div className="text-slate-300 text-[10px]">
+                        👤 *Customer:* +919876543210<br />
+                        📅 *Delivery:* Free Delivery Batch (12:00 PM Slot)
+                      </div>
+
+                      <div className="border-t border-slate-700 pt-1.5 text-slate-200 space-y-0.5">
+                        <div className="font-bold text-emerald-300">📦 Order Items:</div>
+                        <div>• Fresh Apple (Kashmir) x 2 = ₹240</div>
+                        <div>• Organic Farm Milk (1L) x 1 = ₹60</div>
+                      </div>
+
+                      <div className="border-t border-slate-700 pt-1.5 flex justify-between font-bold text-slate-100">
+                        <span>Grand Total:</span>
+                        <span className="text-emerald-400">₹300</span>
+                      </div>
+
+                      <div className="text-[9px] text-slate-400 italic pt-1">
+                        ✅ Order confirmed via Hyperlocal Store.
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                      ℹ️ This formatted message will automatically open in the customer's WhatsApp application when they complete an order.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN 11: PAYMENT OPTIONS & UPI CONFIGURATION ---------------- */}
+          {activeTab === 'payments' && (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-6 shadow-xs text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-600" />
+                    Payment Options & Personal UPI Scanner Settings
+                  </h3>
+                  <p className="text-slate-500 text-xs">
+                    ക്യാഷ് ഓൺ ഡെലിവറിയും (COD) പേഴ്സണൽ Google Pay, PhonePe, QR സ്കാനറും യാതൊരു എപിഐ നിരക്കുകളുമില്ലാതെ ലിങ്ക് ചെയ്യാം.
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 text-emerald-800 text-xs font-black px-3.5 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5 shrink-0">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>Zero API Gateway Fee</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Controls Form */}
+                <form onSubmit={handleSavePaymentSettings} className="lg:col-span-7 space-y-5 bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                  {/* Master Toggles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* COD Toggle */}
+                    <div className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
+                      codEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}>
+                      <div>
+                        <span className="font-extrabold text-xs block flex items-center gap-1.5">
+                          <Banknote className="w-4 h-4 text-emerald-600" />
+                          <span>Cash on Delivery</span>
+                        </span>
+                        <span className="text-[10px] opacity-80 block font-medium">
+                          {codEnabled ? 'COD Active' : 'Disabled'}
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={codEnabled}
+                          onChange={(e) => setCodEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Online UPI Toggle */}
+                    <div className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
+                      upiEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}>
+                      <div>
+                        <span className="font-extrabold text-xs block flex items-center gap-1.5">
+                          <CreditCard className="w-4 h-4 text-emerald-600" />
+                          <span>Online UPI / QR</span>
+                        </span>
+                        <span className="text-[10px] opacity-80 block font-medium">
+                          {upiEnabled ? 'UPI Active' : 'Disabled'}
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={upiEnabled}
+                          onChange={(e) => setUpiEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Wallet Gateway Toggle */}
+                    <div className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
+                      walletEnabled ? 'bg-purple-50 border-purple-300 text-purple-900' : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}>
+                      <div>
+                        <span className="font-extrabold text-xs block flex items-center gap-1.5">
+                          <Wallet className="w-4 h-4 text-purple-600" />
+                          <span>Store Wallet</span>
+                        </span>
+                        <span className="text-[10px] opacity-80 block font-medium">
+                          {walletEnabled ? 'Wallet Active' : 'Disabled'}
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={walletEnabled}
+                          onChange={(e) => setWalletEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Wallet Configuration Section */}
+                  {walletEnabled && (
+                    <div className="space-y-3 bg-purple-50/60 p-4 rounded-2xl border border-purple-200">
+                      <h4 className="font-black text-purple-950 text-xs flex items-center gap-2 border-b border-purple-200 pb-2">
+                        <Wallet className="w-4 h-4 text-purple-600" />
+                        <span>Wallet Payment Gateway Settings</span>
+                      </h4>
+                      <div>
+                        <label className="block text-slate-800 font-extrabold mb-1">
+                          Default Customer Demo Wallet Balance (₹) *
+                        </label>
+                        <input
+                          type="number"
+                          value={walletDemoBalance}
+                          onChange={(e) => setWalletDemoBalance(Number(e.target.value))}
+                          placeholder="500"
+                          required
+                          className="w-full bg-white border border-purple-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 outline-none"
+                        />
+                        <p className="text-[10px] text-purple-700 font-medium mt-1">
+                          Customers can select Store Wallet at checkout to instantly deduct their order total from this initial balance.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* UPI Details Inputs */}
+                  <div className="space-y-4 bg-white p-4 rounded-2xl border border-slate-200">
+                    <h4 className="font-black text-slate-900 text-xs flex items-center gap-2 border-b border-slate-100 pb-2">
+                      <QrCode className="w-4 h-4 text-emerald-600" />
+                      <span>Personal UPI & Account Details</span>
+                    </h4>
+
+                    {/* UPI ID */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Personal UPI ID (ഉദാഹരണത്തിന്: 9876543210@paytm / store@okaxis) *
+                      </label>
+                      <input
+                        type="text"
+                        value={upiId}
+                        onChange={(e) => setUpiId(e.target.value)}
+                        placeholder="e.g. 9876543210@paytm"
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {/* GPay / PhonePe Phone Number */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Google Pay / PhonePe Phone Number (ഗൂഗിൾ പേ നമ്പർ) *
+                      </label>
+                      <input
+                        type="text"
+                        value={upiPhone}
+                        onChange={(e) => setUpiPhone(e.target.value)}
+                        placeholder="e.g. 9876543210"
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {/* Payee Account Name */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Payee / Business Account Name (അക്കൗണ്ട് ഉടമയുടെ പേര്) *
+                      </label>
+                      <input
+                        type="text"
+                        value={upiPayeeName}
+                        onChange={(e) => setUpiPayeeName(e.target.value)}
+                        placeholder="e.g. Anas Hyperlocal Store"
+                        required
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {/* Store Personal QR Image */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Store Personal UPI QR Code Image (നിങ്ങളുടെ സ്കാനർ ക്യൂആർ ചിത്രം)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={upiQrImage}
+                          onChange={(e) => setUpiQrImage(e.target.value)}
+                          placeholder="Paste image URL or upload below"
+                          className="flex-1 bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                        <label className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-2.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shrink-0">
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setUpiQrImage(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-xs cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{saving ? 'Saving...' : 'Save Payment Options'}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Simulated Checkout Payment Preview */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="bg-slate-900 text-white p-4 rounded-3xl space-y-3 border border-slate-800 shadow-xl">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-400" />
+                        <span className="font-extrabold text-xs">Customer Checkout Preview</span>
+                      </div>
+                      <span className="bg-emerald-900 text-emerald-300 text-[9px] font-black px-2 py-0.5 rounded-full">
+                        Live Preview
+                      </span>
+                    </div>
+
+                    <div className="bg-white text-slate-900 p-3.5 rounded-2xl space-y-3 border border-slate-200">
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                        പേയ്മെന്റ് രീതി (Payment Option)
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className={`p-2.5 rounded-xl border text-xs font-bold ${codEnabled ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'opacity-40 line-through'}`}>
+                          <Banknote className="w-3.5 h-3.5 text-emerald-600 mb-1" />
+                          <div>Cash on Delivery</div>
+                        </div>
+
+                        <div className={`p-2.5 rounded-xl border text-xs font-bold ${upiEnabled ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'opacity-40 line-through'}`}>
+                          <CreditCard className="w-3.5 h-3.5 text-emerald-600 mb-1" />
+                          <div>Online Payment</div>
+                        </div>
+                      </div>
+
+                      {upiEnabled && (
+                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-2 text-center">
+                          <div className="text-[10px] font-bold text-emerald-800">
+                            Scan & Pay via GPay / PhonePe
+                          </div>
+
+                          {upiQrImage ? (
+                            <img src={upiQrImage} alt="QR Code Preview" className="w-28 h-28 object-contain mx-auto rounded-lg border border-slate-200 shadow-xs" />
+                          ) : (
+                            <div className="w-28 h-28 bg-slate-200 rounded-lg flex items-center justify-center mx-auto text-slate-400 text-[10px] font-bold">
+                              No QR Image
+                            </div>
+                          )}
+
+                          <div className="text-[10px] font-mono font-bold text-slate-800">
+                            UPI: {upiId}
+                          </div>
+                          <div className="text-[10px] font-bold text-slate-700">
+                            GPay: +91 {upiPhone}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

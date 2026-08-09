@@ -27,6 +27,11 @@ export interface ProductVariant {
   price: number;
 }
 
+export interface ProductCustomField {
+  key: string;
+  value: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -42,17 +47,18 @@ export interface Product {
   available: boolean;
   stock?: number;
   stock_alert_threshold?: number;
+  customFields?: ProductCustomField[];
+  cart_interest_count?: number;
+  requires_prescription?: boolean;
 }
 
-export interface PromoBanner {
-  id: string;
-  title: string;
-  subtitle: string;
-  btnText: string;
-  bgGradient: string;
-  icon: string;
-  linkModuleId?: string;
+export interface ItemPrescription {
+  fileName: string;
+  fileData?: string;
+  fileType?: string;
 }
+
+export type OrderStatus = 'Order Placed' | 'Preparing' | 'Packing' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
 
 export interface DeliverySlot {
   id: string;
@@ -63,15 +69,26 @@ export interface DeliverySlot {
   isActive: boolean;
 }
 
+export interface PromoBanner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  linkModuleId?: string;
+  active?: boolean;
+  btnText?: string;
+  bgGradient?: string;
+  icon?: string;
+}
+
 export interface OrderItem {
   name: string;
   qty: number;
   price: number;
   category: string;
   variantName?: string;
+  prescription?: ItemPrescription;
 }
-
-export type OrderStatus = 'Order Placed' | 'Preparing' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
 
 export interface Order {
   order_id: string;
@@ -85,6 +102,9 @@ export interface Order {
   order_time: string;
   status: OrderStatus;
   is_food_order?: boolean;
+  payment_method?: 'cod' | 'upi_online' | 'wallet';
+  payment_status?: 'Pending' | 'Paid (COD)' | 'Paid (UPI Verified)' | 'Paid (Wallet)' | 'Failed';
+  payment_transaction_id?: string;
 }
 
 export interface CartItem {
@@ -96,6 +116,7 @@ export interface CartItem {
   image: string;
   qty: number;
   categoryId: string;
+  prescription?: ItemPrescription;
 }
 
 export interface StoreSettings {
@@ -113,6 +134,18 @@ export interface StoreSettings {
   pwa_icon?: string;
   pwa_theme_color?: string;
   pwa_bg_color?: string;
+  send_to_customer_whatsapp?: boolean;
+  whatsapp_mode?: 'both' | 'customer_only' | 'store_only';
+  customer_wa_auto_open?: boolean;
+  store_whatsapp_phone?: string;
+  cod_enabled?: boolean;
+  upi_enabled?: boolean;
+  wallet_enabled?: boolean;
+  wallet_demo_balance?: number;
+  upi_id?: string;
+  upi_phone?: string;
+  upi_payee_name?: string;
+  upi_qr_image?: string;
 }
 
 export interface AppData {

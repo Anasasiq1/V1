@@ -6,6 +6,7 @@ import {
   ProductVariant,
   CartItem,
   PromoBanner,
+  ItemPrescription,
 } from './types';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
@@ -19,6 +20,7 @@ import { OrdersView } from './components/OrdersView';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
 import { PWAInstallModal } from './components/PWAInstallModal';
+import { WhatsAppSupportButton } from './components/WhatsAppSupportButton';
 import { initialData } from './data/initialData';
 
 export default function App() {
@@ -228,12 +230,20 @@ export default function App() {
     });
   };
 
+  const handleAttachItemPrescription = (cartId: string, prescription?: ItemPrescription) => {
+    setCart((prevCart) =>
+      prevCart.map((item) => (item.cartId === cartId ? { ...item, prescription } : item))
+    );
+  };
+
   // Place Order API
   const handlePlaceOrder = async (
     notes: string,
     deliveryType: 'scheduled' | 'urgent' = 'scheduled',
     deliverySlotTime?: string,
-    deliveryFee: number = 0
+    deliveryFee: number = 0,
+    paymentMethod: 'cod' | 'upi_online' | 'wallet' = 'cod',
+    paymentTransactionId: string = ''
   ): Promise<boolean> => {
     if (cart.length === 0) return false;
 
@@ -243,6 +253,7 @@ export default function App() {
       price: i.price,
       category:
         appData.categories.find((c) => c.id === i.categoryId)?.name || 'General',
+      prescription: i.prescription,
     }));
 
     const itemsSubtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
@@ -260,6 +271,15 @@ export default function App() {
       order_time: new Date().toISOString(),
       status: 'Order Placed' as const,
       is_food_order: items.some((i) => i.category.toLowerCase().includes('food')),
+      payment_method: paymentMethod,
+      payment_status: (paymentMethod === 'cod'
+        ? 'Paid (COD)'
+        : paymentMethod === 'wallet'
+        ? 'Paid (Wallet)'
+        : paymentTransactionId
+        ? 'Paid (UPI Verified)'
+        : 'Pending') as any,
+      payment_transaction_id: paymentTransactionId,
     };
 
     try {
@@ -444,6 +464,7 @@ export default function App() {
           cart={cart}
           onUpdateQty={(cartId, change) => handleUpdateCartQty(cartId, change)}
           onClearCart={() => setCart([])}
+          onAttachItemPrescription={handleAttachItemPrescription}
           customerPhone={customerPhone}
           settings={appData.settings}
           onPlaceOrder={handlePlaceOrder}
@@ -464,6 +485,9 @@ export default function App() {
           }}
           cartCount={cart.reduce((s, i) => s + i.qty, 0)}
         />
+
+        {/* Floating WhatsApp Support Button */}
+        <WhatsAppSupportButton settings={appData.settings} />
 
         {/* PWA Application Installation Pop-up Modal */}
         <PWAInstallModal

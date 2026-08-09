@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Product, ProductVariant } from '../types';
-import { X, Star, Clock, ShoppingBag, Plus, Minus, Check, Share2, MessageCircle } from 'lucide-react';
+import { X, Star, Clock, ShoppingBag, Plus, Minus, Check, Share2, MessageCircle, Flame, FileText, ShieldAlert } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -22,6 +22,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const selectedVariant = hasVariants ? product.variants![selectedVariantIndex] : undefined;
   const activePrice = selectedVariant ? selectedVariant.price : product.price;
+
+  // Calculate cart interest count popularity metric
+  const interestCount = product.cart_interest_count || Math.floor((product.price * 3) % 29 + 14);
 
   const handleAdd = () => {
     onAddToCartWithVariant(product, selectedVariant, quantity);
@@ -68,40 +71,75 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             alt={product.name}
             className="w-full h-full object-cover"
           />
+
+          {/* Popularity Badge Overlay */}
+          <div className="absolute bottom-3 left-3 bg-slate-900/85 backdrop-blur-md text-amber-400 text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg border border-amber-400/20">
+            <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400 animate-pulse" />
+            <span>{interestCount} shoppers added to cart recently</span>
+          </div>
         </div>
 
         {/* Product Content */}
-        <div className="p-5 text-start">
-          <h2 className="text-lg sm:text-xl font-black text-slate-900 mb-1" dir="auto">
-            {product.name}
-          </h2>
+        <div className="p-5 text-start space-y-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 mb-1" dir="auto">
+              {product.name}
+            </h2>
 
-          <div className="flex items-center gap-3 text-xs font-bold text-slate-500 mb-3">
-            <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-emerald-600" />
-              {product.rating || 4.8}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              {product.deliveryTime || '20-30 min'}
-            </span>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500 mb-2">
+              <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                <Star className="w-3.5 h-3.5 fill-emerald-600" />
+                {product.rating || 4.8}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                {product.deliveryTime || '20-30 min'}
+              </span>
+
+              {/* Prescription notice if required */}
+              {product.requires_prescription && (
+                <span className="bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-lg flex items-center gap-1 text-[10px] font-black">
+                  <ShieldAlert className="w-3 h-3 text-rose-600" />
+                  Prescription Required (പ്രിസ്ക്രിപ്ഷൻ വേണം)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+              <span className="text-2xl font-black text-slate-900" dir="ltr">₹{activePrice}</span>
+              {product.oldPrice && (
+                <span className="text-sm font-bold text-slate-400 line-through" dir="ltr">₹{product.oldPrice}</span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-            <span className="text-2xl font-black text-slate-900" dir="ltr">₹{activePrice}</span>
-            {product.oldPrice && (
-              <span className="text-sm font-bold text-slate-400 line-through" dir="ltr">₹{product.oldPrice}</span>
-            )}
-          </div>
-
-          <p className="text-xs text-slate-600 font-medium leading-relaxed mb-5" dir="auto">
+          {/* Description */}
+          <p className="text-xs text-slate-600 font-medium leading-relaxed" dir="auto">
             {product.description ||
               'വളരെ രുചികരമായ ഉൽപ്പന്നം. ശുദ്ധമായ ചേരുവകൾ ഉപയോഗിച്ച് തയ്യാറാക്കിയത്. ഹൈജീനിക് ആയി പായ്ക്ക് ചെയ്ത് നൽകുന്നതാണ്. ഓർഡർ ചെയ്ത് ആസ്വദിക്കൂ!'}
           </p>
 
+          {/* CUSTOM PRODUCT FIELDS / SPECIFICATIONS SECTION */}
+          {product.customFields && product.customFields.length > 0 && (
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+              <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Product Specifications & Custom Details</span>
+              </h4>
+              <div className="grid grid-cols-1 gap-1.5 text-xs">
+                {product.customFields.map((field, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-slate-100">
+                    <span className="font-bold text-slate-500 text-[11px]">{field.key}:</span>
+                    <span className="font-extrabold text-slate-900 text-xs">{field.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Variants Selection */}
           {hasVariants && (
-            <div className="mb-5">
+            <div>
               <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2" dir="auto">
                 Select Option / വലിപ്പം തിരഞ്ഞെടുക്കുക:
               </h4>
@@ -128,7 +166,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           )}
 
           {/* Quantity Selector */}
-          <div className="flex items-center justify-between mb-5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+          <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <span className="text-xs font-bold text-slate-700" dir="auto">Quantity / എണ്ണം:</span>
             <div className="flex items-center gap-3 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-xs">
               <button
@@ -150,7 +188,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
 
           {/* Actions: Add To Cart & Share on WhatsApp */}
-          <div className="space-y-2">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
               onClick={handleAdd}
