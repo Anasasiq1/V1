@@ -18,11 +18,16 @@ import { CartDrawer } from './components/CartDrawer';
 import { OrdersView } from './components/OrdersView';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
+import { PWAInstallModal } from './components/PWAInstallModal';
 import { initialData } from './data/initialData';
 
 export default function App() {
   const [appData, setAppData] = useState<AppData>(initialData);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // PWA Install state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState<boolean>(false);
 
   // URL & User state
   const [customerPhone, setCustomerPhone] = useState<string>('');
@@ -42,6 +47,41 @@ export default function App() {
 
   // Bottom Navigation tab
   const [navTab, setNavTab] = useState<'home' | 'offers' | 'orders' | 'cart' | 'admin'>('home');
+
+  // Listen for PWA beforeinstallprompt event & trigger pop-up window if PWA system is enabled
+  useEffect(() => {
+    // If admin explicitly disabled PWA system, do not prompt
+    if (appData.settings?.pwa_enabled === false) {
+      return;
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (appData.settings?.pwa_enabled !== false) {
+        setIsPwaModalOpen(true);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Check if running as installed standalone app
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+
+    // If not running in standalone mode and PWA is enabled, open the PWA installation modal automatically on page open
+    if (!isStandalone && appData.settings?.pwa_enabled !== false) {
+      const timer = setTimeout(() => {
+        setIsPwaModalOpen(true);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, [appData.settings?.pwa_enabled]);
 
   // Load customer phone and check admin parameter from URL or localStorage
   useEffect(() => {
@@ -293,6 +333,7 @@ export default function App() {
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAdmin={() => setNavTab('admin')}
           onOpenOrders={() => setNavTab('orders')}
+          onOpenPWA={() => setIsPwaModalOpen(true)}
           deliveryAddress={deliveryAddress}
           onUpdateAddress={handleUpdateAddress}
         />
@@ -305,6 +346,7 @@ export default function App() {
             onTriggerTestWebhook={handleTriggerTestWebhook}
             onRestoreBackup={handleRestoreBackup}
             onClose={() => setNavTab('home')}
+            onTestPWAInstallPrompt={() => setIsPwaModalOpen(true)}
           />
         ) : navTab === 'orders' ? (
           <OrdersView orders={appData.orders} phone={customerPhone} />
@@ -421,6 +463,14 @@ export default function App() {
             }
           }}
           cartCount={cart.reduce((s, i) => s + i.qty, 0)}
+        />
+
+        {/* PWA Application Installation Pop-up Modal */}
+        <PWAInstallModal
+          settings={appData.settings}
+          isOpen={isPwaModalOpen}
+          onClose={() => setIsPwaModalOpen(false)}
+          deferredPrompt={deferredPrompt}
         />
       </div>
     </div>

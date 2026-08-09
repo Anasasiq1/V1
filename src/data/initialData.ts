@@ -96,6 +96,8 @@ export const initialData: AppData = {
       image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80',
       description: 'Freshly picked farm vegetables including tomatoes, capsicum, broccoli, and carrots.',
       available: true,
+      stock: 25,
+      stock_alert_threshold: 5,
     },
     {
       id: 'prod-2',
@@ -109,6 +111,8 @@ export const initialData: AppData = {
       image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=500&auto=format&fit=crop&q=80',
       description: 'Pure, pasteurized farm fresh milk delivered directly to your doorstep.',
       available: true,
+      stock: 3,
+      stock_alert_threshold: 5,
     },
     {
       id: 'prod-3',
@@ -122,6 +126,8 @@ export const initialData: AppData = {
       image: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=500&auto=format&fit=crop&q=80',
       description: 'Complete family emergency first-aid kit with bandages, antiseptic, and essential meds.',
       available: true,
+      stock: 12,
+      stock_alert_threshold: 10,
     },
     {
       id: 'prod-4',
@@ -140,6 +146,8 @@ export const initialData: AppData = {
         { name: 'Combo (With Soft Drink)', price: 230 },
       ],
       available: true,
+      stock: 2,
+      stock_alert_threshold: 8,
     },
     {
       id: 'prod-5',
@@ -157,6 +165,8 @@ export const initialData: AppData = {
         { name: 'Double Cheese Patty', price: 240 },
       ],
       available: true,
+      stock: 18,
+      stock_alert_threshold: 5,
     },
     {
       id: 'prod-6',
@@ -170,6 +180,8 @@ export const initialData: AppData = {
       image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80',
       description: '100% breathable combed cotton t-shirt available in multiple sizes and colors.',
       available: true,
+      stock: 4,
+      stock_alert_threshold: 5,
     },
     {
       id: 'prod-7',
@@ -225,6 +237,13 @@ export const initialData: AppData = {
     delivery_address: 'WVRW+J7M, Tirur, Kerala',
     admin_pin: '1234',
     express_delivery_fee: 40,
+    pwa_enabled: true,
+    pwa_name: 'Hyperlocal WhatsApp Store',
+    pwa_short_name: 'HyperlocalApp',
+    pwa_description: 'Fastest 15-minute hyperlocal delivery store directly integrated with WhatsApp. Order groceries, food, meat & essentials with 1-click.',
+    pwa_icon: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80',
+    pwa_theme_color: '#059669',
+    pwa_bg_color: '#f8fafc',
     delivery_slots: [
       { id: 'slot-1', time: '11:00 AM', label: 'Morning Slot', fee: 0, isFree: true, isActive: true },
       { id: 'slot-2', time: '12:00 PM', label: 'Free Delivery Batch (ഉച്ചക്ക് 12 മണി ബാച്ച്)', fee: 0, isFree: true, isActive: true },

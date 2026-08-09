@@ -1,6 +1,6 @@
 import React from 'react';
 import { Order } from '../types';
-import { Package, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Package, Clock, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
 
 interface OrdersViewProps {
   orders: Order[];
@@ -28,13 +28,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, phone }) => {
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto min-h-[70vh]">
+    <div className="p-4 max-w-md mx-auto min-h-[70vh] pb-24">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
           <Package className="w-5 h-5 text-emerald-600" /> My WhatsApp Orders
         </h2>
         {phone && (
-          <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+          <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl" dir="ltr">
             +{phone}
           </span>
         )}
@@ -51,11 +51,11 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, phone }) => {
           {userOrders.map((order) => (
             <div
               key={order.order_id}
-              className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3"
+              className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3 text-start"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div>
-                  <div className="font-black text-slate-900 text-xs">{order.order_id}</div>
+                  <div className="font-black text-slate-900 text-xs" dir="ltr">{order.order_id}</div>
                   <div className="text-[10px] font-semibold text-slate-400">
                     {new Date(order.order_time).toLocaleString()}
                   </div>
@@ -70,27 +70,35 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, phone }) => {
                 </span>
               </div>
 
+              {/* Delivery Slot Badge if available */}
+              {order.delivery_slot_time && (
+                <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl w-fit border border-emerald-200/80">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span dir="auto">ഡെലിവറി സമയം: {order.delivery_slot_time}</span>
+                </div>
+              )}
+
               {/* Items Summary */}
               <div className="text-xs font-semibold text-slate-600 space-y-1">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>
+                  <div key={idx} className="flex justify-between items-center">
+                    <span dir="auto">
                       {item.qty}x {item.name}
                     </span>
-                    <span className="font-bold text-slate-800">₹{item.price * item.qty}</span>
+                    <span className="font-bold text-slate-800 shrink-0 ml-2" dir="ltr">₹{item.price * item.qty}</span>
                   </div>
                 ))}
               </div>
 
               {order.notes && (
-                <div className="bg-slate-50 p-2 rounded-xl text-[11px] text-slate-500 italic">
+                <div className="bg-slate-50 p-2.5 rounded-xl text-[11px] text-slate-500 italic" dir="auto">
                   Note: {order.notes}
                 </div>
               )}
 
               <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs font-black">
-                <span className="text-slate-500">Total Amount Paid</span>
-                <span className="text-emerald-600 text-sm">₹{order.total_amount}</span>
+                <span className="text-slate-500">Total Amount</span>
+                <span className="text-emerald-600 text-sm" dir="ltr">₹{order.total_amount}</span>
               </div>
             </div>
           ))}

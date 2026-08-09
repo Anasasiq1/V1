@@ -47,6 +47,13 @@ import {
   Clock,
   Zap,
   Truck,
+  AlertTriangle,
+  Package,
+  MessageCircle,
+  Send,
+  ExternalLink,
+  Share2,
+  Smartphone,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -55,6 +62,7 @@ interface AdminPanelProps {
   onTriggerTestWebhook: () => Promise<boolean>;
   onRestoreBackup: (fileContent: string) => Promise<boolean>;
   onClose: () => void;
+  onTestPWAInstallPrompt?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -63,6 +71,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onTriggerTestWebhook,
   onRestoreBackup,
   onClose,
+  onTestPWAInstallPrompt,
 }) => {
   // Security PIN state
   const [pin, setPin] = useState('');
@@ -83,6 +92,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'integrations'
     | 'reports'
     | 'settings'
+    | 'pwa'
   >('dashboard');
 
   const [saving, setSaving] = useState(false);
@@ -91,6 +101,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Filter states
   const [adminSearch, setAdminSearch] = useState('');
   const [selectedModuleFilter, setSelectedModuleFilter] = useState<string>('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'low_stock'>('all');
 
   // Form states for Modules
   const [editingModule, setEditingModule] = useState<Partial<Module> | null>(null);
@@ -131,6 +142,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [storeName, setStoreName] = useState(data.settings?.store_name || 'WhatsApp Hyperlocal Store');
   const [adminLogo, setAdminLogo] = useState(data.settings?.admin_logo || '');
   const [newPinInput, setNewPinInput] = useState(adminPinCode);
+
+  // PWA Settings State
+  const [pwaEnabled, setPwaEnabled] = useState<boolean>(data.settings?.pwa_enabled !== false);
+  const [pwaName, setPwaName] = useState(data.settings?.pwa_name || data.settings?.store_name || 'Hyperlocal WhatsApp Store');
+  const [pwaShortName, setPwaShortName] = useState(data.settings?.pwa_short_name || 'HyperlocalApp');
+  const [pwaDescription, setPwaDescription] = useState(data.settings?.pwa_description || 'Fastest 15-minute hyperlocal delivery store directly integrated with WhatsApp. Order groceries, food, meat & essentials with 1-click.');
+  const [pwaIcon, setPwaIcon] = useState(data.settings?.pwa_icon || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80');
+  const [pwaThemeColor, setPwaThemeColor] = useState(data.settings?.pwa_theme_color || '#059669');
+  const [pwaBgColor, setPwaBgColor] = useState(data.settings?.pwa_bg_color || '#f8fafc');
+
+  // WhatsApp Notification State
+  const [whatsappModalOrder, setWhatsappModalOrder] = useState<{
+    order: AppData['orders'][0];
+    status: OrderStatus;
+  } | null>(null);
+  const [customWhatsappNote, setCustomWhatsappNote] = useState<string>('');
+  const [autoOpenWhatsapp, setAutoOpenWhatsapp] = useState<boolean>(true);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
@@ -273,11 +301,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         description: editingProduct.description || '',
         variants: editingProduct.variants || [],
         available: editingProduct.available !== false,
+        stock: editingProduct.stock !== undefined ? Number(editingProduct.stock) : 10,
+        stock_alert_threshold:
+          editingProduct.stock_alert_threshold !== undefined
+            ? Number(editingProduct.stock_alert_threshold)
+            : 5,
       };
       updatedProducts.push(newProd);
     } else {
       updatedProducts = updatedProducts.map((p) =>
-        p.id === editingProduct.id ? ({ ...p, ...editingProduct } as Product) : p
+        p.id === editingProduct.id
+          ? ({
+              ...p,
+              ...editingProduct,
+              stock:
+                editingProduct.stock !== undefined
+                  ? Number(editingProduct.stock)
+                  : (p.stock ?? 10),
+              stock_alert_threshold:
+                editingProduct.stock_alert_threshold !== undefined
+                  ? Number(editingProduct.stock_alert_threshold)
+                  : (p.stock_alert_threshold ?? 5),
+            } as Product)
+          : p
       );
     }
 
@@ -381,13 +427,106 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showToast('Express Delivery Fee updated!');
   };
 
-  // ---------------- ORDERS MANAGEMENT ----------------
+  // ---------------- PWA APP SETTINGS HANDLER ----------------
+  const handleSavePwaSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const updatedSettings = {
+      ...data.settings,
+      pwa_enabled: pwaEnabled,
+      pwa_name: pwaName,
+      pwa_short_name: pwaShortName,
+      pwa_description: pwaDescription,
+      pwa_icon: pwaIcon,
+      pwa_theme_color: pwaThemeColor,
+      pwa_bg_color: pwaBgColor,
+    };
+    await onUpdateData({ ...data, settings: updatedSettings });
+    setSaving(false);
+    showToast('PWA Mobile App settings saved successfully!');
+  };
+
+  // ---------------- ORDERS & AUTOMATED WHATSAPP NOTIFICATIONS ----------------
+  const buildWhatsAppMessage = (
+    order: AppData['orders'][0],
+    status: OrderStatus,
+    sName: string,
+    customNote?: string
+  ) => {
+    let cleanPhone = (order.customer_phone || '').replace(/\D/g, '');
+    if (cleanPhone.length === 10) {
+      cleanPhone = '91' + cleanPhone; // Add India country code if 10 digits
+    }
+
+    const statusEmojis: Record<OrderStatus, string> = {
+      'Order Placed': '📦',
+      'Preparing': '🍳',
+      'Out for Delivery': '🛵',
+      'Delivered': '🎉',
+      'Cancelled': '❌',
+    };
+
+    const statusTexts: Record<OrderStatus, string> = {
+      'Order Placed': 'Your order has been confirmed and received.',
+      'Preparing': 'Your order is currently being prepared with care.',
+      'Out for Delivery': 'Your order is out for delivery and on its way to your address!',
+      'Delivered': 'Your order has been successfully delivered. Thank you for shopping with us!',
+      'Cancelled': 'Your order has been cancelled. Please contact customer support if you have questions.',
+    };
+
+    const emoji = statusEmojis[status] || '📋';
+    const statusDesc = statusTexts[status] || `Status updated to ${status}`;
+
+    let message = `*${sName} - Order Status Update* ${emoji}\n\n` +
+      `Hello! Your order *#${order.order_id}* status is now: *${status}*\n\n` +
+      `ℹ️ *Details:* ${statusDesc}\n` +
+      `💰 *Total Amount:* ₹${order.total_amount}\n`;
+
+    if (order.delivery_slot_time) {
+      message += `⏰ *Delivery Slot:* ${order.delivery_slot_time}\n`;
+    }
+
+    if (order.items && order.items.length > 0) {
+      message += `\n📦 *Order Items:*\n` + order.items.map((i) => `• ${i.qty}x ${i.name}`).join('\n') + `\n`;
+    }
+
+    if (customNote && customNote.trim()) {
+      message += `\n💬 *Note from Store:* ${customNote.trim()}\n`;
+    }
+
+    message += `\nThank you for choosing *${sName}*! 🙏`;
+
+    const whatsappUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}` : '';
+    return { message, whatsappUrl, cleanPhone };
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    const targetOrder = data.orders.find((o) => o.order_id === orderId);
     const updatedOrders = data.orders.map((o) => (o.order_id === orderId ? { ...o, status } : o));
     setSaving(true);
     await onUpdateData({ ...data, orders: updatedOrders });
     setSaving(false);
-    showToast(`Order status updated to ${status}`);
+
+    if (targetOrder) {
+      const updatedOrder = { ...targetOrder, status };
+      showToast(`Order #${orderId} status updated to "${status}"!`);
+
+      // Construct pre-filled WhatsApp link
+      const { whatsappUrl } = buildWhatsAppMessage(
+        updatedOrder,
+        status,
+        data.settings?.store_name || storeName || 'Hyperlocal Store'
+      );
+
+      // Trigger automatic WhatsApp open if feature enabled
+      if (autoOpenWhatsapp && whatsappUrl) {
+        window.open(whatsappUrl, '_blank');
+      }
+
+      // Open notification modal for review or manual resend/custom note
+      setWhatsappModalOrder({ order: updatedOrder, status });
+      setCustomWhatsappNote('');
+    }
   };
 
   // ---------------- WEBHOOK MANAGEMENT ----------------
@@ -612,6 +751,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const totalOrdersCount = data.orders.length;
   const totalRevenue = data.orders.reduce((sum, o) => sum + o.total_amount, 0);
 
+  // Low stock products list calculation
+  const lowStockProductsList = data.products.filter((p) => {
+    const currentStock = p.stock ?? 10;
+    const threshold = p.stock_alert_threshold ?? 5;
+    return currentStock <= threshold;
+  });
+
   // Filter products for Products screen
   const filteredProductsList = data.products.filter((p) => {
     if (adminSearch.trim()) {
@@ -622,6 +768,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     if (selectedModuleFilter !== 'all' && p.moduleId !== selectedModuleFilter) {
       return false;
+    }
+    if (stockFilter === 'low_stock') {
+      const currentStock = p.stock ?? 10;
+      const threshold = p.stock_alert_threshold ?? 5;
+      if (currentStock > threshold) return false;
     }
     return true;
   });
@@ -670,6 +821,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 { id: 'categories', label: 'Categories', icon: Grid, badge: data.categories.length },
                 { id: 'modules', label: 'Modules', icon: Layers, badge: data.modules.length },
                 { id: 'delivery', label: 'Delivery Slots', icon: Clock, badge: deliverySlots.length },
+                { id: 'pwa', label: 'PWA Mobile App', icon: Smartphone, badge: 'PWA' },
                 { id: 'integrations', label: 'n8n Webhook', icon: Link2 },
                 { id: 'reports', label: 'Backup & Restore', icon: FileArchive },
                 { id: 'settings', label: 'Admin Branding', icon: Settings },
@@ -744,6 +896,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {activeTab === 'categories' && 'Module-Wise Categories'}
                 {activeTab === 'modules' && 'Modules Configuration'}
                 {activeTab === 'delivery' && 'Delivery Slots & Express Delivery Settings'}
+                {activeTab === 'pwa' && 'PWA Mobile App Customization'}
                 {activeTab === 'integrations' && 'n8n Webhooks Integration'}
                 {activeTab === 'reports' && 'Full ZIP & Database Backup'}
                 {activeTab === 'settings' && 'Admin Branding & Settings'}
@@ -869,9 +1022,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {/* ---------------- SCREEN 2: ORDERS MANAGEMENT ---------------- */}
           {activeTab === 'orders' && (
             <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-base text-slate-900">Live Customer Orders</h3>
-                <span className="text-xs font-bold text-slate-500">Total: {data.orders.length}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Live Customer Orders</h3>
+                  <p className="text-slate-500 text-xs">Manage order statuses & trigger automated WhatsApp updates</p>
+                </div>
+
+                {/* Auto-launch WhatsApp Toggle */}
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-2xl">
+                  <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <label htmlFor="auto-wa-toggle" className="text-xs font-extrabold text-emerald-900 cursor-pointer select-none">
+                    Auto-launch WhatsApp on status update
+                  </label>
+                  <input
+                    id="auto-wa-toggle"
+                    type="checkbox"
+                    checked={autoOpenWhatsapp}
+                    onChange={(e) => setAutoOpenWhatsapp(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                  />
+                </div>
               </div>
 
               {data.orders.length === 0 ? (
@@ -883,7 +1053,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {data.orders.map((order) => (
                     <div
                       key={order.order_id}
-                      className="border border-slate-200/80 p-4 rounded-2xl space-y-3 bg-slate-50/50"
+                      className="border border-slate-200/80 p-4 rounded-2xl space-y-3 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all"
                     >
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-slate-200/80">
                         <div>
@@ -909,19 +1079,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           )}
                         </div>
 
-                        <select
-                          value={order.status}
-                          onChange={(e) =>
-                            handleUpdateOrderStatus(order.order_id, e.target.value as OrderStatus)
-                          }
-                          className="bg-white border border-slate-300 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                          <option value="Order Placed">Order Placed</option>
-                          <option value="Preparing">Preparing</option>
-                          <option value="Out for Delivery">Out for Delivery</option>
-                          <option value="Delivered">Delivered</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
+                        {/* Status Select & Quick WhatsApp Trigger Button */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            value={order.status}
+                            onChange={(e) =>
+                              handleUpdateOrderStatus(order.order_id, e.target.value as OrderStatus)
+                            }
+                            className="bg-white border border-slate-300 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-2xs"
+                          >
+                            <option value="Order Placed">Order Placed</option>
+                            <option value="Preparing">Preparing</option>
+                            <option value="Out for Delivery">Out for Delivery</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+
+                          <button
+                            onClick={() => {
+                              setWhatsappModalOrder({ order, status: order.status });
+                              setCustomWhatsappNote('');
+                            }}
+                            title="Send WhatsApp Update to Customer"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>WhatsApp Update</span>
+                          </button>
+                        </div>
                       </div>
 
                       <div className="text-xs text-slate-700 space-y-1">
@@ -952,10 +1137,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-black text-base text-slate-900">Manage Store Products</h3>
-                  <p className="text-slate-500 text-xs">Direct image upload from computer/phone or image URL</p>
+                  <p className="text-slate-500 text-xs">Inventory levels, threshold alerts & direct image uploads</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Stock Alert Quick Filter */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
+                    <button
+                      onClick={() => setStockFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                        stockFilter === 'all'
+                          ? 'bg-white text-slate-900 shadow-xs font-extrabold'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      All ({data.products.length})
+                    </button>
+                    <button
+                      onClick={() => setStockFilter('low_stock')}
+                      className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer ${
+                        stockFilter === 'low_stock'
+                          ? 'bg-rose-600 text-white shadow-xs font-black'
+                          : 'text-rose-600 hover:bg-rose-50'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>Low Stock ({lowStockProductsList.length})</span>
+                    </button>
+                  </div>
+
                   <select
                     value={selectedModuleFilter}
                     onChange={(e) => setSelectedModuleFilter(e.target.value)}
@@ -982,6 +1192,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500',
                         description: '',
                         available: true,
+                        stock: 10,
+                        stock_alert_threshold: 5,
                       });
                       setIsNewProduct(true);
                     }}
@@ -1065,6 +1277,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           );
                         })}
                       </select>
+                    </div>
+
+                    {/* Stock Quantity & Low Stock Alert Threshold Fields */}
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Current Stock Quantity (Units) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editingProduct.stock ?? ''}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            stock: e.target.value === '' ? undefined : Number(e.target.value),
+                          })
+                        }
+                        placeholder="e.g. 15"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                        Stock Alert Threshold *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editingProduct.stock_alert_threshold ?? ''}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            stock_alert_threshold: e.target.value === '' ? undefined : Number(e.target.value),
+                          })
+                        }
+                        placeholder="e.g. 5"
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Triggers red warning badge when stock &le; threshold
+                      </span>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1161,14 +1414,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   const cat = data.categories.find((c) => c.id === prod.categoryId);
                   const mod = data.modules.find((m) => m.id === prod.moduleId);
 
+                  const currentStock = prod.stock ?? 10;
+                  const threshold = prod.stock_alert_threshold ?? 5;
+                  const isLowStock = currentStock <= threshold;
+
                   return (
                     <div
                       key={prod.id}
-                      className="border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
+                      className={`border p-3 rounded-2xl flex items-center justify-between text-xs transition-all ${
+                        isLowStock
+                          ? 'border-rose-300 bg-rose-50/40 hover:bg-rose-50/80'
+                          : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:shadow-xs'
+                      }`}
                     >
-                      <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="flex items-center gap-3 overflow-hidden min-w-0">
                         <img src={prod.image} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200 bg-white" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="font-extrabold text-slate-900 truncate">{prod.name}</div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-orange-600 font-black text-sm">₹{prod.price}</span>
@@ -1178,6 +1439,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
                           <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
                             {cat?.name || 'Category'} • <span className="font-bold text-slate-700">{mod?.name || 'Module'}</span>
+                          </div>
+
+                          {/* Visual Stock Alert Badge */}
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            {isLowStock ? (
+                              <span className="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded-full font-black text-[10px] flex items-center gap-1 shadow-2xs animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                LOW STOCK: {currentStock} left (Alert: &le;{threshold})
+                              </span>
+                            ) : (
+                              <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">
+                                <Package className="w-3 h-3 text-slate-400 shrink-0" />
+                                Stock: {currentStock} (Alert: &le;{threshold})
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2013,6 +2289,409 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   >
                     <Save className="w-4 h-4" /> Save Admin Branding & Settings
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN 9: PWA MOBILE APP CUSTOMIZATION ---------------- */}
+          {activeTab === 'pwa' && (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-6 shadow-xs text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-emerald-600" />
+                    Progressive Web App (PWA) Customization & Branding
+                  </h3>
+                  <p className="text-slate-500 text-xs">
+                    Customizable app icon, app name, description & theme colors. Automatically prompts website visitors to install the app.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onTestPWAInstallPrompt) {
+                      onTestPWAInstallPrompt();
+                      showToast('PWA Install Prompt Modal opened!');
+                    } else {
+                      showToast('PWA Modal triggered', 'success');
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-2xl flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Preview / Test Install Modal</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Form Inputs */}
+                <form onSubmit={handleSavePwaSettings} className="lg:col-span-7 space-y-5 bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                  <div className="space-y-4">
+                    {/* Enable / Disable PWA Master Toggle Box */}
+                    <div className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      pwaEnabled 
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm' 
+                        : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}>
+                      <div className="space-y-0.5">
+                        <div className="font-black text-sm flex items-center gap-2">
+                          <Smartphone className={`w-4 h-4 ${pwaEnabled ? 'text-emerald-600' : 'text-rose-600'}`} />
+                          <span>PWA Pop-up Installation System</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            pwaEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                          }`}>
+                            {pwaEnabled ? 'ENABLED' : 'DISABLED'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-600">
+                          {pwaEnabled 
+                            ? 'Website visitors will automatically see the app installation window on page open.' 
+                            : 'Installation popup is turned off. Users will not see automatic app install prompts.'}
+                        </p>
+                      </div>
+
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={pwaEnabled}
+                          onChange={(e) => setPwaEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-2 border-b border-slate-200 pb-2 pt-2">
+                      <Sparkles className="w-4 h-4 text-emerald-600" /> App Identity & Manifest Details
+                    </h4>
+
+                    {/* App Full Name */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Application Name (PWA Title) *
+                      </label>
+                      <input
+                        type="text"
+                        value={pwaName}
+                        onChange={(e) => setPwaName(e.target.value)}
+                        placeholder="e.g. Hyperlocal WhatsApp Store"
+                        required
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Title shown on the installation popup window & app header
+                      </span>
+                    </div>
+
+                    {/* Short Name */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Short Name (Home Screen Badge) *
+                      </label>
+                      <input
+                        type="text"
+                        value={pwaShortName}
+                        onChange={(e) => setPwaShortName(e.target.value)}
+                        placeholder="e.g. HyperlocalApp"
+                        required
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Label displayed below the mobile phone app icon on home screen
+                      </span>
+                    </div>
+
+                    {/* App Description */}
+                    <div>
+                      <label className="block text-slate-800 font-extrabold mb-1">
+                        Application Description *
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={pwaDescription}
+                        onChange={(e) => setPwaDescription(e.target.value)}
+                        placeholder="Describe store highlights (e.g. 15-min delivery, direct WhatsApp ordering...)"
+                        required
+                        className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    {/* PWA Icon Upload / Link */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <label className="block text-slate-800 font-extrabold flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-emerald-600" /> PWA App Icon / Logo Image *
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="w-20 h-20 rounded-2xl border-2 border-emerald-500/20 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 shadow-md">
+                          {pwaIcon ? (
+                            <img src={pwaIcon} alt="PWA Icon" className="w-full h-full object-cover" />
+                          ) : (
+                            <Smartphone className="w-8 h-8 text-slate-300" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-2.5 w-full">
+                          <div>
+                            <label className="bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 font-extrabold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 text-xs transition-colors">
+                              <UploadCloud className="w-4 h-4 text-emerald-600" /> Direct File Upload from Device
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileRead(file, (base64) => {
+                                      setPwaIcon(base64);
+                                    });
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={pwaIcon}
+                            onChange={(e) => setPwaIcon(e.target.value)}
+                            placeholder="Or paste App Icon URL (https://...)"
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px] text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Colors Selection */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-800 font-extrabold mb-1">Theme Accent Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={pwaThemeColor}
+                            onChange={(e) => setPwaThemeColor(e.target.value)}
+                            className="w-10 h-10 rounded-xl border border-slate-300 cursor-pointer p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={pwaThemeColor}
+                            onChange={(e) => setPwaThemeColor(e.target.value)}
+                            className="flex-1 bg-white border border-slate-300 rounded-xl p-2 font-mono text-xs font-bold text-slate-800 uppercase"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-800 font-extrabold mb-1">App Background Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={pwaBgColor}
+                            onChange={(e) => setPwaBgColor(e.target.value)}
+                            className="w-10 h-10 rounded-xl border border-slate-300 cursor-pointer p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={pwaBgColor}
+                            onChange={(e) => setPwaBgColor(e.target.value)}
+                            className="flex-1 bg-white border border-slate-300 rounded-xl p-2 font-mono text-xs font-bold text-slate-800 uppercase"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-xs cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{saving ? 'Saving...' : 'Save PWA Customization'}</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Live Preview Card */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="bg-slate-900 text-white p-5 rounded-3xl space-y-4 border border-slate-800 shadow-xl">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <span className="font-extrabold text-xs text-emerald-400 flex items-center gap-1.5">
+                        <Eye className="w-4 h-4" /> Live Installation Window Preview
+                      </span>
+                      <span className="bg-emerald-900/60 text-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-700/50">
+                        Pop-up Window
+                      </span>
+                    </div>
+
+                    {/* Simulated Mobile Popup Box */}
+                    <div className="bg-white text-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4">
+                      <div className="text-center space-y-2">
+                        <img
+                          src={pwaIcon || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80'}
+                          alt=""
+                          className="w-16 h-16 rounded-2xl object-cover mx-auto shadow-md border border-slate-200"
+                        />
+                        <h4 className="font-black text-slate-900 text-base leading-tight">
+                          {pwaName || 'Store App'}
+                        </h4>
+                        <span className="text-[11px] font-bold text-emerald-700 block">
+                          {pwaShortName || 'App'} • ⚡ Official Application
+                        </span>
+                        <p className="text-[11px] text-slate-600 font-medium line-clamp-2">
+                          {pwaDescription}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[10px] space-y-1 font-semibold text-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span>• 1-Tap Home Screen Access</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>• Offline Product Catalog</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={{ backgroundColor: pwaThemeColor || '#059669' }}
+                        className="w-full py-2.5 px-4 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>ഇൻസ്റ്റാൾ ആപ്ലിക്കേഷൻ (Install App)</span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">
+                      ℹ️ This installation prompt will automatically pop up when customers open your website on mobile or desktop browsers until the app is installed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- WHATSAPP AUTOMATED NOTIFICATION MODAL ---------------- */}
+          {whatsappModalOrder && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-emerald-100 space-y-5 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-900 text-base">WhatsApp Order Notification</h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Real-time update for Order #{whatsappModalOrder.order.order_id}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setWhatsappModalOrder(null)}
+                    className="p-1.5 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Order Summary Header */}
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="font-extrabold text-slate-800">Order #{whatsappModalOrder.order.order_id}</span>
+                    <span className="text-slate-500 text-[11px] block mt-0.5">
+                      Customer Phone: +{whatsappModalOrder.order.customer_phone}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-xl font-black text-[11px] inline-block shadow-2xs">
+                      {whatsappModalOrder.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Optional Custom Note Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                    <span>Add Custom Message / Delivery Note (Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customWhatsappNote}
+                    onChange={(e) => setCustomWhatsappNote(e.target.value)}
+                    placeholder="e.g. Delivery partner: Rahul (9876543210)"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+
+                {/* Live Message Preview */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                    Pre-filled Message Preview:
+                  </label>
+                  <div className="bg-emerald-950 text-emerald-100 p-4 rounded-2xl font-mono text-xs whitespace-pre-wrap border border-emerald-800 leading-relaxed max-h-48 overflow-y-auto shadow-inner">
+                    {buildWhatsAppMessage(
+                      whatsappModalOrder.order,
+                      whatsappModalOrder.status,
+                      data.settings?.store_name || storeName || 'Hyperlocal Store',
+                      customWhatsappNote
+                    ).message}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      const { message } = buildWhatsAppMessage(
+                        whatsappModalOrder.order,
+                        whatsappModalOrder.status,
+                        data.settings?.store_name || storeName || 'Hyperlocal Store',
+                        customWhatsappNote
+                      );
+                      navigator.clipboard.writeText(message);
+                      showToast('WhatsApp message text copied to clipboard!');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span>Copy Text</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => setWhatsappModalOrder(null)}
+                      className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <a
+                      href={
+                        buildWhatsAppMessage(
+                          whatsappModalOrder.order,
+                          whatsappModalOrder.status,
+                          data.settings?.store_name || storeName || 'Hyperlocal Store',
+                          customWhatsappNote
+                        ).whatsappUrl
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        showToast('Opening WhatsApp link...');
+                        setWhatsappModalOrder(null);
+                      }}
+                      className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>Send via WhatsApp</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>

@@ -40,6 +40,8 @@ export interface Product {
   description: string;
   variants?: ProductVariant[];
   available: boolean;
+  stock?: number;
+  stock_alert_threshold?: number;
 }
 
 export interface PromoBanner {
@@ -104,6 +106,13 @@ export interface StoreSettings {
   admin_logo?: string;
   express_delivery_fee?: number;
   delivery_slots?: DeliverySlot[];
+  pwa_enabled?: boolean;
+  pwa_name?: string;
+  pwa_short_name?: string;
+  pwa_description?: string;
+  pwa_icon?: string;
+  pwa_theme_color?: string;
+  pwa_bg_color?: string;
 }
 
 export interface AppData {

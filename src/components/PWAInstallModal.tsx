@@ -1,0 +1,192 @@
+import React, { useState, useEffect } from 'react';
+import { Download, X, Smartphone, Zap, ShieldCheck, Share2, PlusSquare, Sparkles, CheckCircle2 } from 'lucide-react';
+import { StoreSettings } from '../types';
+
+interface PWAInstallModalProps {
+  settings?: Partial<StoreSettings>;
+  isOpen: boolean;
+  onClose: () => void;
+  deferredPrompt: any;
+  onInstallSuccess?: () => void;
+}
+
+export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
+  settings,
+  isOpen,
+  onClose,
+  deferredPrompt,
+  onInstallSuccess,
+}) => {
+  const [isIOS, setIsIOS] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+
+  useEffect(() => {
+    // Detect iOS devices (Safari doesn't support automatic beforeinstallprompt)
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIosDevice);
+  }, []);
+
+  if (!isOpen) return null;
+
+  const appName = settings?.pwa_name || settings?.store_name || 'Hyperlocal Store';
+  const appShortName = settings?.pwa_short_name || 'HyperlocalApp';
+  const appDesc =
+    settings?.pwa_description ||
+    'Order fresh groceries, food, meat & home services with 1-click WhatsApp delivery updates directly from your home screen!';
+  const appIcon =
+    settings?.pwa_icon ||
+    'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80';
+  const themeColor = settings?.pwa_theme_color || '#059669';
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      setIsInstalling(true);
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          if (onInstallSuccess) onInstallSuccess();
+          onClose();
+        }
+      } catch (err) {
+        console.error('Error launching install prompt:', err);
+      } finally {
+        setIsInstalling(false);
+      }
+    } else if (isIOS) {
+      // For iOS Safari, scroll down to show manual steps or highlight instructions
+    } else {
+      // Fallback instruction trigger
+      alert(`To install ${appName}:\n\n1. Open browser menu (3 dots or share button)\n2. Tap "Install App" or "Add to Home Screen"`);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-emerald-100 relative overflow-hidden my-auto space-y-5 animate-in zoom-in-95 duration-200">
+        
+        {/* Background Decorative Accent */}
+        <div 
+          className="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-2xl opacity-20 pointer-events-none"
+          style={{ backgroundColor: themeColor }}
+        />
+
+        {/* Top Header & Dismiss Button */}
+        <div className="flex items-start justify-between gap-3 relative z-10">
+          <div className="flex items-center gap-2">
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 shadow-2xs">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              Progressive Web App
+            </span>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-full transition-all cursor-pointer shrink-0"
+            title="ഇപ്പൊൾ വേണ്ട / Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* App Icon & Title Header */}
+        <div className="text-center space-y-3 relative z-10 pt-1">
+          <div className="relative inline-block group">
+            <img
+              src={appIcon}
+              alt={appName}
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover mx-auto shadow-xl border-2 border-emerald-500/20 group-hover:scale-105 transition-transform duration-300"
+            />
+            <div className="absolute -bottom-2 -right-2 bg-emerald-600 text-white p-1.5 rounded-xl shadow-md border-2 border-white">
+              <Smartphone className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+              {appName}
+            </h2>
+            <p className="text-emerald-700 font-bold text-xs mt-0.5">
+              {appShortName} • ⚡ Official Mobile App
+            </p>
+          </div>
+
+          <p className="text-slate-600 text-xs sm:text-sm font-medium leading-relaxed px-1">
+            {appDesc}
+          </p>
+        </div>
+
+        {/* App Highlights / Advantages */}
+        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-2 text-xs text-slate-700 font-semibold relative z-10">
+          <div className="flex items-center gap-2.5 text-slate-800 font-bold border-b border-slate-200/60 pb-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>App Features & Advantages</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>1-Tap Instant Launch</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>Superfast Loading</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>WhatsApp Live Updates</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Offline Product Browse</span>
+            </div>
+          </div>
+        </div>
+
+        {/* iOS Manual Instructions if on iPhone/iPad */}
+        {isIOS && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1.5">
+            <div className="font-extrabold flex items-center gap-1.5 text-amber-950">
+              <Share2 className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>How to Install on iPhone / iPad:</span>
+            </div>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] font-medium text-amber-800">
+              <li>
+                Tap the <span className="font-extrabold text-amber-900">Share button</span> (bottom browser bar)
+              </li>
+              <li>
+                Scroll down and tap <span className="font-extrabold text-amber-900">"Add to Home Screen" <PlusSquare className="w-3 h-3 inline text-amber-700" /></span>
+              </li>
+              <li>Tap <span className="font-extrabold text-amber-900">"Add"</span> on the top right</li>
+            </ol>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="space-y-2.5 relative z-10 pt-1">
+          <button
+            onClick={handleInstallClick}
+            disabled={isInstalling}
+            style={{ backgroundColor: themeColor }}
+            className="w-full py-3.5 px-5 text-white font-black text-sm rounded-2xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer border border-white/20"
+          >
+            <Download className="w-5 h-5 animate-bounce" />
+            <span>
+              {isInstalling
+                ? 'Installing App...'
+                : 'ഇൻസ്റ്റാൾ ആപ്ലിക്കേഷൻ (Install App)'}
+            </span>
+          </button>
+
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 text-slate-500 hover:text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            ആവശ്യമില്ല / ഇപ്പൊൾ വേണ്ട (Dismiss for now)
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};

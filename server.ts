@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initialData } from './src/data/initialData';
-import { AppData, Order } from './src/types';
+import { AppData, Order, StoreSettings } from './src/types';
 
 const DATA_FILE = path.join(process.cwd(), 'data_store.json');
 
@@ -45,6 +45,37 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // API Routes
+
+  // Dynamic PWA Web App Manifest
+  app.get('/manifest.json', (_req, res) => {
+    const s = (storeData.settings || {}) as StoreSettings;
+    const manifest = {
+      name: s.pwa_name || s.store_name || 'Hyperlocal WhatsApp Store',
+      short_name: s.pwa_short_name || 'HyperlocalApp',
+      description: s.pwa_description || 'Fastest hyperlocal delivery store directly integrated with WhatsApp.',
+      start_url: '/',
+      display: 'standalone',
+      background_color: s.pwa_bg_color || '#f8fafc',
+      theme_color: s.pwa_theme_color || '#059669',
+      orientation: 'portrait-primary',
+      icons: [
+        {
+          src: s.pwa_icon || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any maskable'
+        },
+        {
+          src: s.pwa_icon || 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&auto=format&fit=crop&q=80',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable'
+        }
+      ]
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.json(manifest);
+  });
 
   // Get full app data
   app.get('/api/data', (_req, res) => {
