@@ -67,6 +67,10 @@ import {
   ToggleLeft,
   ToggleRight,
   ChevronUp,
+  Server,
+  Terminal,
+  BookOpen,
+  Globe,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -108,6 +112,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'pwa'
     | 'whatsapp'
     | 'payments'
+    | 'deployment'
   >('dashboard');
 
   const [saving, setSaving] = useState(false);
@@ -978,6 +983,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 { id: 'payments', label: 'Payment Options', icon: CreditCard, badge: 'COD / UPI' },
                 { id: 'integrations', label: 'n8n Webhook', icon: Link2 },
                 { id: 'reports', label: 'Backup & Restore', icon: FileArchive },
+                { id: 'deployment', label: 'aaPanel & Hosting Guide', icon: Server, badge: 'Guide' },
                 { id: 'settings', label: 'Admin Branding', icon: Settings },
               ].map((item) => {
                 const Icon = item.icon;
@@ -3516,6 +3522,240 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ---------------- SCREEN: AAPANEL & NODE.JS DEPLOYMENT & INSTALLATION GUIDE ---------------- */}
+          {activeTab === 'deployment' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
+                      <Server className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-black tracking-tight">aaPanel & Node.js Hosting Guide</h2>
+                        <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                          Production Ready
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-xs mt-0.5">
+                        സെർവറിലും aaPanel-ലും ആപ്ലിക്കേഷൻ ഇൻസ്റ്റാൾ ചെയ്യാനുള്ള സമ്പൂർണ്ണ മലയാളം & ഇംഗ്ലീഷ് ഗൈഡ്
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        const content = `# aaPanel & Node.js Quick Install Guide\n\nRun these commands in aaPanel Terminal or Linux VPS:\n\ncd /www/wwwroot/yourdomain.com\nnpm install\nnpm run build\nnpm run start\n\n# Or using PM2:\npm install -g pm2\npm2 start ecosystem.config.cjs\npm2 save\n\nSuperadmin: https://yourdomain.com/superadmin.php (Default PIN: 1234)`;
+                        const blob = new Blob([content], { type: 'text/markdown' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'AAPANEL_AND_NODEJS_INSTALL_GUIDE.md';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showToast('Documentation file downloaded!');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs flex items-center gap-1.5 backdrop-blur-sm border border-white/10 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" /> Download Guide (.md)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Spec Badges */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                    <div className="text-slate-400 text-[10px] font-bold uppercase">Node Environment</div>
+                    <div className="text-white font-extrabold text-sm mt-0.5">Node.js 18 / 20 LTS</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                    <div className="text-slate-400 text-[10px] font-bold uppercase">Application Port</div>
+                    <div className="text-emerald-400 font-extrabold text-sm mt-0.5">Port 3000 (Default)</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                    <div className="text-slate-400 text-[10px] font-bold uppercase">Process Manager</div>
+                    <div className="text-orange-400 font-extrabold text-sm mt-0.5">PM2 / aaPanel Node Mgr</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                    <div className="text-slate-400 text-[10px] font-bold uppercase">Data Storage</div>
+                    <div className="text-purple-400 font-extrabold text-sm mt-0.5">data_store.json (Local)</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* METHOD 1: AAPANEL NODE.JS PROJECT MANAGER (RECOMMENDED) */}
+              <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <span className="bg-orange-600 text-white font-black text-xs px-2.5 py-1 rounded-xl">
+                    Method 1
+                  </span>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">
+                      aaPanel - Node.js Project Manager (ശുപാർശ ചെയ്യുന്ന എളുപ്പവഴി)
+                    </h3>
+                    <p className="text-slate-500 text-xs">
+                      aaPanel GUI വഴി ഫയലുകൾ അപ്‌ലോഡ് ചെയ്ത് 1-ക്ലിക്ക് ആയി ആപ്പ് പ്രവർത്തിപ്പിക്കാം
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 text-xs text-slate-700">
+                  {/* Step 1 */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                    <div className="flex items-center gap-2 font-extrabold text-slate-900 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs">1</span>
+                      <span>aaPanel-ൽ Node.js Version Manager ഇൻസ്റ്റാൾ ചെയ്യുക</span>
+                    </div>
+                    <p className="text-slate-600 pl-8">
+                      aaPanel ലോഗിൻ ചെയ്ത് <strong>App Store</strong> തുറക്കുക ➔ <strong>Node.js Version Manager</strong> അല്ലെങ്കിൽ <strong>Node project manager</strong> എന്ന് തിരഞ്ഞ് ഇൻസ്റ്റാൾ ചെയ്യുക. ശേഷം Node v18 അല്ലെങ്കിൽ Node v20 ഇൻസ്റ്റാൾ ചെയ്യുക.
+                    </p>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                    <div className="flex items-center gap-2 font-extrabold text-slate-900 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs">2</span>
+                      <span>File Manager വഴി ഫയലുകൾ അപ്‌ലോഡ് ചെയ്യുക (Upload Files)</span>
+                    </div>
+                    <p className="text-slate-600 pl-8">
+                      aaPanel <strong>Files</strong> (File Manager) തുറന്ന് <code className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-800 font-mono">/www/wwwroot/yourdomain.com</code> എന്ന ഫോൾഡറിലേക്ക് പ്രോജക്റ്റ് ZIP അപ്‌ലോഡ് ചെയ്ത് <strong>Unzip (Extract)</strong> ചെയ്യുക.
+                    </p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                    <div className="flex items-center gap-2 font-extrabold text-slate-900 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs">3</span>
+                      <span>Terminal തുറന്ന് Build ചെയ്യുക</span>
+                    </div>
+                    <div className="pl-8 space-y-2">
+                      <p className="text-slate-600">aaPanel മുകളിലെ Terminal തുറന്ന് താഴെ കാണുന്ന കമാൻഡുകൾ നൽകുക:</p>
+                      <div className="bg-slate-900 text-slate-100 p-3 rounded-xl font-mono text-xs relative">
+                        <pre className="overflow-x-auto">cd /www/wwwroot/yourdomain.com{'\n'}npm install{'\n'}npm run build</pre>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText('cd /www/wwwroot/yourdomain.com\nnpm install\nnpm run build');
+                            showToast('Build commands copied to clipboard!');
+                          }}
+                          className="absolute top-2 right-2 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-[10px] font-extrabold cursor-pointer"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                    <div className="flex items-center gap-2 font-extrabold text-slate-900 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs">4</span>
+                      <span>Node Project Add ചെയ്യുക (Run Settings)</span>
+                    </div>
+                    <div className="pl-8 space-y-1.5 text-slate-600">
+                      <p>aaPanel ➔ <strong>Website</strong> ➔ <strong>Node project</strong> ➔ <strong>Add Node Project</strong> ക്ലിക്ക് ചെയ്യുക:</p>
+                      <ul className="list-disc pl-5 space-y-1 font-medium">
+                        <li><strong>Path</strong>: <code className="bg-slate-200 px-1 rounded font-mono">/www/wwwroot/yourdomain.com</code></li>
+                        <li><strong>Run Opt</strong>: <code className="bg-slate-200 px-1 rounded font-mono">start</code> (അല്ലെങ്കിൽ <code className="bg-slate-200 px-1 rounded font-mono">npm run start</code>)</li>
+                        <li><strong>Port</strong>: <code className="bg-slate-200 px-1 rounded font-mono">3000</code></li>
+                        <li><strong>Auto start at boot</strong>: Tick ചെയ്യുക (✅)</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Step 5 */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                    <div className="flex items-center gap-2 font-extrabold text-slate-900 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs">5</span>
+                      <span>Domain & 1-Click SSL സെറ്റ് ചെയ്യുക</span>
+                    </div>
+                    <p className="text-slate-600 pl-8">
+                      Node Project ലിസ്റ്റിലെ <strong>Mapping</strong> ക്ലിക്ക് ചെയ്ത് നിങ്ങളുടെ ഡൊമൈൻ നൽകുക. ശേഷം aaPanel Website ലിസ്റ്റിൽ പോയി <strong>SSL ➔ Let's Encrypt</strong> വഴി ഫ്രീ SSL ആക്റ്റീവ് ആക്കുക.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* METHOD 2: PM2 & NGINX REVERSE PROXY */}
+              <div className="bg-white border border-slate-200/80 p-6 rounded-3xl space-y-4 shadow-xs">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <span className="bg-indigo-600 text-white font-black text-xs px-2.5 py-1 rounded-xl">
+                    Method 2
+                  </span>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">
+                      PM2 Process Manager + Nginx Reverse Proxy
+                    </h3>
+                    <p className="text-slate-500 text-xs">
+                      പ്രൊഫഷണൽ പ്രൊഡക്ഷൻ സെർവറുകൾക്കായി ബാക്ക്ഗ്രൗണ്ടിൽ എപ്പോഴും റൺ ചെയ്യാൻ
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="bg-slate-900 text-slate-100 p-4 rounded-2xl font-mono space-y-2 relative">
+                    <div className="text-slate-400 text-[11px] mb-2 font-sans font-bold">
+                      # PM2 ഉപയോഗിച്ച് ആപ്പ് റൺ ചെയ്യാനുള്ള കമാൻഡുകൾ:
+                    </div>
+                    <pre className="overflow-x-auto text-emerald-400">
+                      npm install -g pm2{'\n'}
+                      cd /www/wwwroot/yourdomain.com{'\n'}
+                      npm install{'\n'}
+                      npm run build{'\n'}
+                      pm2 start ecosystem.config.cjs{'\n'}
+                      pm2 save{'\n'}
+                      pm2 startup
+                    </pre>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('npm install -g pm2\ncd /www/wwwroot/yourdomain.com\nnpm install\nnpm run build\npm2 start ecosystem.config.cjs\npm2 save\npm2 startup');
+                        showToast('PM2 commands copied to clipboard!');
+                      }}
+                      className="absolute top-3 right-3 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-extrabold cursor-pointer"
+                    >
+                      Copy All
+                    </button>
+                  </div>
+
+                  <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl space-y-2">
+                    <div className="font-extrabold text-indigo-900 text-sm flex items-center gap-1.5">
+                      <Globe className="w-4 h-4 text-indigo-600" />
+                      aaPanel Nginx Reverse Proxy ക്രമീകരണം
+                    </div>
+                    <p className="text-indigo-800 text-[11px]">
+                      aaPanel-ൽ <strong>Website</strong> ➔ <strong>Reverse Proxy</strong> ➔ <strong>Add reverse proxy</strong> തിരഞ്ഞെടുത്ത് Target URL ആയി <code className="bg-indigo-100 text-indigo-900 px-1 py-0.5 rounded font-mono font-bold">http://127.0.0.1:3000</code> നൽകുക.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* PERSISTENCE & SUPERADMIN INFO */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-3xl space-y-2">
+                  <div className="font-extrabold text-emerald-900 text-sm flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                    ഡാറ്റ സംഭരണവും ബാക്കപ്പും (Data Storage)
+                  </div>
+                  <p className="text-emerald-800 text-xs leading-relaxed">
+                    എല്ലാ പ്രോഡക്റ്റുകൾ, കാറ്റഗറികൾ, മോഡ്യൂളുകൾ, ഓർഡറുകൾ, സ്റ്റോർ സെറ്റിംഗുകൾ എന്നിവ റൂട്ട് ഫോൾഡറിലെ <code className="bg-emerald-200/70 text-emerald-950 font-bold px-1 rounded">data_store.json</code> എന്ന ഫയലിൽ ഓട്ടോമാറ്റിക്കായി സുരക്ഷിതമായി സൂക്ഷിക്കപ്പെടുന്നു. എപ്പോൾ വേണമെങ്കിലും ഫയൽ മാനേജർ വഴിയോ അഡ്മിൻ പാനൽ വഴിയോ ബാക്കപ്പ് എടുക്കാം.
+                  </p>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 p-5 rounded-3xl space-y-2">
+                  <div className="font-extrabold text-orange-900 text-sm flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-orange-700" />
+                    Superadmin Login ആക്സസ്
+                  </div>
+                  <p className="text-orange-800 text-xs leading-relaxed">
+                    വെബ്‌സൈറ്റ് ലൈവ് ആയ ശേഷം സൂപ്പർ അഡ്മിൻ പാനലിലേക്ക് പ്രവേശിക്കാൻ ബ്രൗസറിൽ <code className="bg-orange-200/70 text-orange-950 font-bold px-1 rounded">/superadmin.php</code> അല്ലെങ്കിൽ <code className="bg-orange-200/70 text-orange-950 font-bold px-1 rounded">?superadmin</code> എന്ന് ചേർക്കുക. ഡിഫോൾട്ട് പാസ്‌കോഡ് <strong>1234</strong> ആണ്.
+                  </p>
                 </div>
               </div>
             </div>
