@@ -22,6 +22,13 @@ import { BottomNav } from './components/BottomNav';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { WhatsAppSupportButton } from './components/WhatsAppSupportButton';
 import { initialData } from './data/initialData';
+import {
+  getActiveModules,
+  getActiveCategories,
+  getVisibleProducts,
+  getVisibleBanners,
+  sanitizeModuleSelection,
+} from './utils/visibility';
 
 export default function App() {
   const [appData, setAppData] = useState<AppData>(initialData);
@@ -148,15 +155,31 @@ export default function App() {
     fetchAppData();
   }, []);
 
+  // Auto-sanitize module selection if a module gets disabled by admin
+  useEffect(() => {
+    if (activeModuleId !== 'all') {
+      const sanitized = sanitizeModuleSelection(activeModuleId, appData.modules);
+      if (sanitized !== activeModuleId) {
+        setActiveModuleId(sanitized);
+      }
+    }
+  }, [appData.modules, activeModuleId]);
+
   // Update App Data API
   const handleUpdateAppData = async (newData: AppData) => {
     setAppData(newData);
     try {
-      await fetch('/api/data', {
+      const res = await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newData),
       });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setAppData(json.data);
+        }
+      }
     } catch (err) {
       console.error('Failed to update app data:', err);
     }
@@ -317,44 +340,16 @@ export default function App() {
     return false;
   };
 
-  // Filter products by selected module, active status of module and category, and search query
-  const filteredProducts = appData.products
-    .filter((product) => {
-      // Availability / Enabled check
-      if (product.available === false) return false;
-
-      // Module active check (if module disabled, hide products belonging to it)
-      const parentModule = appData.modules.find((m) => m.id === product.moduleId);
-      if (parentModule && parentModule.active === false) return false;
-
-      // Category active check (if category disabled, hide products belonging to it)
-      const parentCategory = appData.categories.find((c) => c.id === product.categoryId);
-      if (parentCategory && parentCategory.active === false) return false;
-
-      // Search query check
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = product.name.toLowerCase().includes(q);
-        const matchDesc = product.description?.toLowerCase().includes(q);
-        if (!matchName && !matchDesc) return false;
-      }
-
-      // Module check
-      if (activeModuleId !== 'all') {
-        // Find active categories linked to this module
-        const moduleCategoryIds = appData.categories
-          .filter((c) => c.moduleId === activeModuleId && c.active !== false)
-          .map((c) => c.id);
-
-        return (
-          product.moduleId === activeModuleId ||
-          moduleCategoryIds.includes(product.categoryId)
-        );
-      }
-
-      return true;
-    })
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // Filtered views using centralized visibility engine
+  const activeModules = getActiveModules(appData.modules);
+  const visibleBanners = getVisibleBanners(appData.banners, appData.modules);
+  const filteredProducts = getVisibleProducts(
+    appData.products,
+    appData.categories,
+    appData.modules,
+    activeModuleId,
+    searchQuery
+  );
 
   const activeModule = appData.modules.find((m) => m.id === activeModuleId);
 
@@ -403,7 +398,7 @@ export default function App() {
 
             {/* Category Tab Selector */}
             <CategoryTabs
-              modules={appData.modules}
+              modules={activeModules}
               activeModuleId={activeModuleId}
               onSelectModule={(id) => setActiveModuleId(id)}
             />
@@ -411,7 +406,7 @@ export default function App() {
             {/* Modules Grid (Only show when on 'Home/all' or if no search query) */}
             {activeModuleId === 'all' && !searchQuery && (
               <ModuleGrid
-                modules={appData.modules}
+                modules={activeModules}
                 onSelectModule={(id) => setActiveModuleId(id)}
               />
             )}
@@ -419,7 +414,7 @@ export default function App() {
             {/* Promotional Banners */}
             {!searchQuery && (
               <PromoBanners
-                banners={appData.banners}
+                banners={visibleBanners}
                 onSelectBanner={(b) => {
                   if (b.linkModuleId) setActiveModuleId(b.linkModuleId);
                 }}

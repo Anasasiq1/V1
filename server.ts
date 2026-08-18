@@ -13,13 +13,12 @@ function loadStoreData(): AppData {
       const content = fs.readFileSync(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       return {
-        ...initialData,
-        ...parsed,
-        modules: parsed.modules?.length ? parsed.modules : initialData.modules,
-        categories: parsed.categories?.length ? parsed.categories : initialData.categories,
-        products: parsed.products?.length ? parsed.products : initialData.products,
-        banners: parsed.banners?.length ? parsed.banners : initialData.banners,
-        settings: { ...initialData.settings, ...parsed.settings },
+        modules: Array.isArray(parsed.modules) ? parsed.modules : initialData.modules,
+        categories: Array.isArray(parsed.categories) ? parsed.categories : initialData.categories,
+        products: Array.isArray(parsed.products) ? parsed.products : initialData.products,
+        banners: Array.isArray(parsed.banners) ? parsed.banners : initialData.banners,
+        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+        settings: { ...initialData.settings, ...(parsed.settings || {}) },
       };
     }
   } catch (err) {
@@ -28,11 +27,21 @@ function loadStoreData(): AppData {
   return initialData;
 }
 
-function saveStoreData(data: AppData) {
+function saveStoreData(data: AppData): boolean {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DATA_FILE);
+    return true;
   } catch (err) {
-    console.error('Failed to save data file:', err);
+    console.error('Failed to save data file atomically:', err);
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+      return true;
+    } catch (fallbackErr) {
+      console.error('Fallback save also failed:', fallbackErr);
+      return false;
+    }
   }
 }
 
@@ -84,15 +93,28 @@ async function startServer() {
 
   // Save/Update full app data
   app.post('/api/data', (req, res) => {
-    if (req.body && typeof req.body === 'object') {
-      storeData = {
-        ...storeData,
-        ...req.body,
-      };
-      saveStoreData(storeData);
-      return res.json({ success: true, data: storeData });
+    try {
+      if (req.body && typeof req.body === 'object') {
+        const incoming = req.body as Partial<AppData>;
+        storeData = {
+          modules: Array.isArray(incoming.modules) ? incoming.modules : storeData.modules,
+          categories: Array.isArray(incoming.categories) ? incoming.categories : storeData.categories,
+          products: Array.isArray(incoming.products) ? incoming.products : storeData.products,
+          banners: Array.isArray(incoming.banners) ? incoming.banners : storeData.banners,
+          orders: Array.isArray(incoming.orders) ? incoming.orders : storeData.orders,
+          settings: incoming.settings ? { ...storeData.settings, ...incoming.settings } : storeData.settings,
+        };
+        const saved = saveStoreData(storeData);
+        if (!saved) {
+          return res.status(500).json({ error: 'Failed to write data to disk' });
+        }
+        return res.json({ success: true, data: storeData });
+      }
+      return res.status(400).json({ error: 'Invalid payload: Expected JSON object' });
+    } catch (err: any) {
+      console.error('API /api/data error:', err);
+      return res.status(500).json({ error: 'Internal server error: ' + (err?.message || 'Unknown') });
     }
-    return res.status(400).json({ error: 'Invalid payload' });
   });
 
   // Place order & trigger n8n Webhook
@@ -154,15 +176,15 @@ async function startServer() {
   app.post('/api/restore', (req, res) => {
     try {
       const backup: AppData = req.body;
-      if (!backup || !Array.isArray(backup.modules)) {
+      if (!backup || typeof backup !== 'object') {
         return res.status(400).json({ error: 'Invalid backup file structure' });
       }
       storeData = {
-        modules: backup.modules || initialData.modules,
-        categories: backup.categories || initialData.categories,
-        products: backup.products || initialData.products,
-        banners: backup.banners || initialData.banners,
-        orders: backup.orders || [],
+        modules: Array.isArray(backup.modules) ? backup.modules : initialData.modules,
+        categories: Array.isArray(backup.categories) ? backup.categories : initialData.categories,
+        products: Array.isArray(backup.products) ? backup.products : initialData.products,
+        banners: Array.isArray(backup.banners) ? backup.banners : initialData.banners,
+        orders: Array.isArray(backup.orders) ? backup.orders : [],
         settings: { ...initialData.settings, ...(backup.settings || {}) },
       };
       saveStoreData(storeData);
@@ -174,10 +196,10 @@ async function startServer() {
 
   // Update Settings (n8n Webhook, etc.)
   app.post('/api/settings', (req, res) => {
-    if (req.body) {
+    if (req.body && typeof req.body === 'object') {
       storeData.settings = { ...storeData.settings, ...req.body };
       saveStoreData(storeData);
-      return res.json({ success: true, settings: storeData.settings });
+      return res.json({ success: true, settings: storeData.settings, data: storeData });
     }
     return res.status(400).json({ error: 'Invalid settings' });
   });
