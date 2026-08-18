@@ -189,23 +189,29 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Actions: Add To Cart & Share on WhatsApp */}
           <div className="space-y-2 pt-1">
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black py-3.5 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
-            >
-              {added ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Added to Cart!</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingBag className="w-4 h-4" />
-                  <span dir="ltr">Add to Cart - ₹{activePrice * quantity}</span>
-                </>
-              )}
-            </button>
+            {product.available === false || (product.stock !== undefined && product.stock <= 0) ? (
+              <div className="w-full bg-slate-100 text-slate-500 font-extrabold py-3.5 rounded-2xl text-xs text-center border border-slate-200">
+                Currently Unavailable / ലഭ്യമല്ല
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black py-3.5 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+              >
+                {added ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Added to Cart!</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-4 h-4" />
+                    <span dir="ltr">Add to Cart - ₹{activePrice * quantity}</span>
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               type="button"

@@ -13,16 +13,21 @@ function loadStoreData(): AppData {
       const content = fs.readFileSync(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       return {
-        modules: Array.isArray(parsed.modules) ? parsed.modules : initialData.modules,
-        categories: Array.isArray(parsed.categories) ? parsed.categories : initialData.categories,
-        products: Array.isArray(parsed.products) ? parsed.products : initialData.products,
-        banners: Array.isArray(parsed.banners) ? parsed.banners : initialData.banners,
+        modules: Array.isArray(parsed.modules) ? parsed.modules : (parsed.modules !== undefined ? [] : initialData.modules),
+        categories: Array.isArray(parsed.categories) ? parsed.categories : (parsed.categories !== undefined ? [] : initialData.categories),
+        products: Array.isArray(parsed.products) ? parsed.products : (parsed.products !== undefined ? [] : initialData.products),
+        banners: Array.isArray(parsed.banners) ? parsed.banners : (parsed.banners !== undefined ? [] : initialData.banners),
         orders: Array.isArray(parsed.orders) ? parsed.orders : [],
         settings: { ...initialData.settings, ...(parsed.settings || {}) },
       };
+    } else {
+      // First boot: create the canonical persistent data_store.json file immediately
+      console.log('Initializing data_store.json from bootstrap template...');
+      saveStoreData(initialData);
+      return initialData;
     }
   } catch (err) {
-    console.error('Failed to read data file, using initial data:', err);
+    console.error('Failed to read data file, using initial data fallback:', err);
   }
   return initialData;
 }

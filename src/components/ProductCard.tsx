@@ -95,7 +95,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Action Button / Quantity Controls */}
       <div className="p-3 pt-0" onClick={(e) => e.stopPropagation()}>
-        {hasVariants ? (
+        {product.available === false || (product.stock !== undefined && product.stock <= 0) ? (
+          <div className="w-full bg-slate-100 text-slate-400 font-extrabold text-[11px] py-2 rounded-xl text-center border border-slate-200">
+            Out of Stock
+          </div>
+        ) : hasVariants ? (
           <button
             type="button"
             onClick={() => onOpenDetail(product)}

@@ -165,9 +165,8 @@ export default function App() {
     }
   }, [appData.modules, activeModuleId]);
 
-  // Update App Data API
-  const handleUpdateAppData = async (newData: AppData) => {
-    setAppData(newData);
+  // Update App Data API with canonical server synchronization
+  const handleUpdateAppData = async (newData: AppData): Promise<boolean> => {
     try {
       const res = await fetch('/api/data', {
         method: 'POST',
@@ -178,10 +177,15 @@ export default function App() {
         const json = await res.json();
         if (json.data) {
           setAppData(json.data);
+          return true;
         }
       }
+      throw new Error(`Server responded with status ${res.status}`);
     } catch (err) {
-      console.error('Failed to update app data:', err);
+      console.error('Failed to update app data on server:', err);
+      // Re-fetch to ensure local state remains canonical
+      fetchAppData();
+      return false;
     }
   };
 

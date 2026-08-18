@@ -191,3 +191,17 @@ export function sanitizeModuleSelection(
   }
   return selectedModuleId;
 }
+
+/**
+ * Checks if a specific cart item's underlying product, category, and module are all active.
+ */
+export function isCartItemAvailable(
+  cartItem: { productId: string },
+  products: Product[] = [],
+  categories: Category[] = [],
+  modules: Module[] = []
+): boolean {
+  const prod = products.find((p) => p.id === cartItem.productId);
+  if (!prod) return false;
+  return isProductActive(prod, categories, modules);
+}

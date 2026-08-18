@@ -75,7 +75,7 @@ import {
 
 interface AdminPanelProps {
   data: AppData;
-  onUpdateData: (newData: AppData) => Promise<void>;
+  onUpdateData: (newData: AppData) => Promise<boolean | void>;
   onTriggerTestWebhook: () => Promise<boolean>;
   onRestoreBackup: (fileContent: string) => Promise<boolean>;
   onClose: () => void;
