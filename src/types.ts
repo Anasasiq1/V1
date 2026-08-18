@@ -12,6 +12,7 @@ export interface Module {
   size: ModuleSize;
   order: number;
   badge?: string;
+  active?: boolean;
 }
 
 export interface Category {
@@ -20,6 +21,8 @@ export interface Category {
   moduleId: string;
   icon: string;
   image?: string;
+  order?: number;
+  active?: boolean;
 }
 
 export interface ProductVariant {
@@ -50,6 +53,7 @@ export interface Product {
   customFields?: ProductCustomField[];
   cart_interest_count?: number;
   requires_prescription?: boolean;
+  order?: number;
 }
 
 export interface ItemPrescription {

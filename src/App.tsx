@@ -89,7 +89,19 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlPhone = params.get('phone');
-    const isAdmin = params.get('admin') || params.get('page') === 'admin';
+    const pathname = window.location.pathname.toLowerCase();
+    const isAdmin =
+      params.get('admin') === 'true' ||
+      params.get('admin') === '1' ||
+      params.get('admin') === '' ||
+      params.get('page') === 'admin' ||
+      params.get('page') === 'superadmin' ||
+      params.get('superadmin') !== null ||
+      params.get('superadmin.php') !== null ||
+      pathname.includes('superadmin') ||
+      pathname.includes('/admin') ||
+      window.location.hash.includes('superadmin') ||
+      window.location.hash.includes('admin');
 
     if (isAdmin) {
       setNavTab('admin');
@@ -305,34 +317,44 @@ export default function App() {
     return false;
   };
 
-  // Filter products by selected module and search query
-  const filteredProducts = appData.products.filter((product) => {
-    // Availability check
-    if (!product.available) return false;
+  // Filter products by selected module, active status of module and category, and search query
+  const filteredProducts = appData.products
+    .filter((product) => {
+      // Availability / Enabled check
+      if (product.available === false) return false;
 
-    // Search query check
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = product.name.toLowerCase().includes(q);
-      const matchDesc = product.description.toLowerCase().includes(q);
-      if (!matchName && !matchDesc) return false;
-    }
+      // Module active check (if module disabled, hide products belonging to it)
+      const parentModule = appData.modules.find((m) => m.id === product.moduleId);
+      if (parentModule && parentModule.active === false) return false;
 
-    // Module check
-    if (activeModuleId !== 'all') {
-      // Find categories linked to this module
-      const moduleCategoryIds = appData.categories
-        .filter((c) => c.moduleId === activeModuleId)
-        .map((c) => c.id);
+      // Category active check (if category disabled, hide products belonging to it)
+      const parentCategory = appData.categories.find((c) => c.id === product.categoryId);
+      if (parentCategory && parentCategory.active === false) return false;
 
-      return (
-        product.moduleId === activeModuleId ||
-        moduleCategoryIds.includes(product.categoryId)
-      );
-    }
+      // Search query check
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = product.name.toLowerCase().includes(q);
+        const matchDesc = product.description?.toLowerCase().includes(q);
+        if (!matchName && !matchDesc) return false;
+      }
 
-    return true;
-  });
+      // Module check
+      if (activeModuleId !== 'all') {
+        // Find active categories linked to this module
+        const moduleCategoryIds = appData.categories
+          .filter((c) => c.moduleId === activeModuleId && c.active !== false)
+          .map((c) => c.id);
+
+        return (
+          product.moduleId === activeModuleId ||
+          moduleCategoryIds.includes(product.categoryId)
+        );
+      }
+
+      return true;
+    })
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const activeModule = appData.modules.find((m) => m.id === activeModuleId);
 

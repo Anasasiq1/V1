@@ -12,7 +12,9 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
   activeModuleId,
   onSelectModule,
 }) => {
-  const sortedModules = [...modules].sort((a, b) => a.order - b.order);
+  const sortedModules = [...modules]
+    .filter((m) => m.active !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   return (
     <div className="px-4 pt-1 pb-2">

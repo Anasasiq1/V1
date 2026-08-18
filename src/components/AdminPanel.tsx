@@ -60,6 +60,13 @@ import {
   QrCode,
   Wallet,
   Copy,
+  ArrowUp,
+  ArrowDown,
+  EyeOff,
+  Power,
+  ToggleLeft,
+  ToggleRight,
+  ChevronUp,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -275,6 +282,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         size: (editingModule.size as ModuleSize) || 'medium',
         order: updatedModules.length + 1,
         badge: editingModule.badge || '',
+        active: editingModule.active !== false,
       };
       updatedModules.push(newMod);
     } else {
@@ -288,6 +296,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSaving(false);
     setEditingModule(null);
     showToast('Module saved successfully!');
+  };
+
+  const handleToggleModuleActive = async (id: string) => {
+    const updated = data.modules.map((m) =>
+      m.id === id ? { ...m, active: m.active === false ? true : false } : m
+    );
+    const target = updated.find((m) => m.id === id);
+    setSaving(true);
+    await onUpdateData({ ...data, modules: updated });
+    setSaving(false);
+    showToast(
+      `Module "${target?.name}" is now ${target?.active !== false ? 'Active & Visible' : 'Disabled & Hidden (ഡിസേബിൾ)'}`
+    );
+  };
+
+  const handleMoveModule = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= data.modules.length) return;
+    const newModules = [...data.modules];
+    const temp = newModules[index];
+    newModules[index] = newModules[targetIndex];
+    newModules[targetIndex] = temp;
+    const reindexed = newModules.map((m, idx) => ({ ...m, order: idx + 1 }));
+    setSaving(true);
+    await onUpdateData({ ...data, modules: reindexed });
+    setSaving(false);
+    showToast('Module order updated');
   };
 
   const handleDeleteModule = async (id: string) => {
@@ -313,6 +348,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         moduleId: editingCategory.moduleId,
         icon: editingCategory.icon || '🏷️',
         image: editingCategory.image || '',
+        order: updatedCategories.length + 1,
+        active: editingCategory.active !== false,
       };
       updatedCategories.push(newCat);
     } else {
@@ -326,6 +363,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSaving(false);
     setEditingCategory(null);
     showToast('Category saved successfully!');
+  };
+
+  const handleToggleCategoryActive = async (id: string) => {
+    const updated = data.categories.map((c) =>
+      c.id === id ? { ...c, active: c.active === false ? true : false } : c
+    );
+    const target = updated.find((c) => c.id === id);
+    setSaving(true);
+    await onUpdateData({ ...data, categories: updated });
+    setSaving(false);
+    showToast(
+      `Category "${target?.name}" is now ${target?.active !== false ? 'Active & Visible' : 'Disabled & Hidden (ഡിസേബിൾ)'}`
+    );
+  };
+
+  const handleMoveCategory = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= data.categories.length) return;
+    const newCategories = [...data.categories];
+    const temp = newCategories[index];
+    newCategories[index] = newCategories[targetIndex];
+    newCategories[targetIndex] = temp;
+    const reindexed = newCategories.map((c, idx) => ({ ...c, order: idx + 1 }));
+    setSaving(true);
+    await onUpdateData({ ...data, categories: reindexed });
+    setSaving(false);
+    showToast('Category order updated');
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -364,6 +428,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           editingProduct.stock_alert_threshold !== undefined
             ? Number(editingProduct.stock_alert_threshold)
             : 5,
+        order: updatedProducts.length + 1,
       };
       updatedProducts.push(newProd);
     } else {
@@ -390,6 +455,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSaving(false);
     setEditingProduct(null);
     showToast('Product saved successfully!');
+  };
+
+  const handleToggleProductAvailable = async (id: string) => {
+    const updated = data.products.map((p) =>
+      p.id === id ? { ...p, available: !p.available } : p
+    );
+    const target = updated.find((p) => p.id === id);
+    setSaving(true);
+    await onUpdateData({ ...data, products: updated });
+    setSaving(false);
+    showToast(
+      `Product "${target?.name}" is now ${target?.available ? 'Available / Live' : 'Disabled / Hidden (ഹൈഡ്)'}`
+    );
+  };
+
+  const handleMoveProduct = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= data.products.length) return;
+    const newProducts = [...data.products];
+    const temp = newProducts[index];
+    newProducts[index] = newProducts[targetIndex];
+    newProducts[targetIndex] = temp;
+    const reindexed = newProducts.map((p, idx) => ({ ...p, order: idx + 1 }));
+    setSaving(true);
+    await onUpdateData({ ...data, products: reindexed });
+    setSaving(false);
+    showToast('Product position updated');
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -1400,6 +1492,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </span>
                     </div>
 
+                    {/* Enable / Disable Product Visibility Toggle */}
+                    <div className="sm:col-span-2 bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                          <Power className="w-4 h-4 text-emerald-600" />
+                          Product Active & Visible on Storefront
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          Enable to allow customers to order; disable to instantly hide this product.
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editingProduct.available !== false}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, available: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
                     <div className="sm:col-span-2">
                       <label className="block text-slate-700 font-bold mb-1">Description</label>
                       <textarea
@@ -1497,61 +1611,123 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   const currentStock = prod.stock ?? 10;
                   const threshold = prod.stock_alert_threshold ?? 5;
                   const isLowStock = currentStock <= threshold;
+                  const prodIndex = data.products.findIndex((p) => p.id === prod.id);
+                  const isAvailable = prod.available !== false;
 
                   return (
                     <div
                       key={prod.id}
-                      className={`border p-3 rounded-2xl flex items-center justify-between text-xs transition-all ${
-                        isLowStock
+                      className={`border p-3.5 rounded-2xl flex items-center justify-between text-xs transition-all ${
+                        !isAvailable
+                          ? 'border-slate-300 bg-slate-100/70 opacity-80'
+                          : isLowStock
                           ? 'border-rose-300 bg-rose-50/40 hover:bg-rose-50/80'
                           : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:shadow-xs'
                       }`}
                     >
-                      <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                        <img src={prod.image} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200 bg-white" />
+                      <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
+                        <div className="relative shrink-0">
+                          <img
+                            src={prod.image}
+                            alt=""
+                            className="w-16 h-16 rounded-xl object-cover border border-slate-200 bg-white"
+                          />
+                          {!isAvailable && (
+                            <span className="absolute inset-0 bg-slate-900/60 backdrop-blur-2xs rounded-xl flex items-center justify-center text-white font-extrabold text-[9px] uppercase">
+                              Hidden
+                            </span>
+                          )}
+                        </div>
+
                         <div className="min-w-0 flex-1">
-                          <div className="font-extrabold text-slate-900 truncate">{prod.name}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-extrabold text-slate-900 truncate">{prod.name}</div>
+                          </div>
+
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-orange-600 font-black text-sm">₹{prod.price}</span>
                             {prod.oldPrice && (
                               <span className="line-through text-slate-400 text-[11px]">₹{prod.oldPrice}</span>
                             )}
                           </div>
+
                           <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
                             {cat?.name || 'Category'} • <span className="font-bold text-slate-700">{mod?.name || 'Module'}</span>
                           </div>
 
-                          {/* Visual Stock Alert Badge */}
-                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                            {isLowStock ? (
+                          {/* Quick Enable/Disable & Status Badges */}
+                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => handleToggleProductAvailable(prod.id)}
+                              className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all shadow-2xs cursor-pointer ${
+                                isAvailable
+                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
+                              }`}
+                              title={
+                                isAvailable
+                                  ? 'Click to Disable / Hide Product from customer view'
+                                  : 'Click to Enable / Show Product on customer catalog'
+                              }
+                            >
+                              {isAvailable ? (
+                                <>
+                                  <ToggleRight className="w-3.5 h-3.5 text-emerald-700" />
+                                  <span>Enabled / Live</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Disabled (ഡിസേബിൾ)</span>
+                                </>
+                              )}
+                            </button>
+
+                            {isLowStock && isAvailable && (
                               <span className="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded-full font-black text-[10px] flex items-center gap-1 shadow-2xs animate-pulse">
                                 <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
-                                LOW STOCK: {currentStock} left (Alert: &le;{threshold})
-                              </span>
-                            ) : (
-                              <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">
-                                <Package className="w-3 h-3 text-slate-400 shrink-0" />
-                                Stock: {currentStock} (Alert: &le;{threshold})
+                                LOW: {currentStock}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5 shrink-0 ml-2">
+                      {/* Actions & Reorder Up/Down */}
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        {/* Move Up/Down */}
+                        <div className="flex flex-col gap-1 mr-1">
+                          <button
+                            onClick={() => handleMoveProduct(prodIndex, 'up')}
+                            disabled={prodIndex <= 0}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Product Up (മുകളിലേക്ക്)"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveProduct(prodIndex, 'down')}
+                            disabled={prodIndex >= data.products.length - 1 || prodIndex < 0}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Product Down (താഴേക്ക്)"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                        </div>
+
                         <button
                           onClick={() => {
                             setEditingProduct(prod);
                             setIsNewProduct(false);
                           }}
-                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl cursor-pointer"
                           title="Edit Product"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteProduct(prod.id)}
-                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl cursor-pointer"
                           title="Delete Product"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1570,7 +1746,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-black text-base text-slate-900">Module-Wise Categories</h3>
-                  <p className="text-slate-500 text-xs">Add, edit, delete categories & category logo images per module</p>
+                  <p className="text-slate-500 text-xs">
+                    Enable/disable, reorder (up/down), edit and organize categories per module
+                  </p>
                 </div>
 
                 <button
@@ -1580,10 +1758,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       icon: '🏷️',
                       image: '',
                       moduleId: data.modules[0]?.id || '',
+                      active: true,
                     });
                     setIsNewCategory(true);
                   }}
-                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0"
+                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> Add Category
                 </button>
@@ -1599,7 +1778,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </h4>
                     <button
                       onClick={() => setEditingCategory(null)}
-                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300"
+                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300 cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1626,7 +1805,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       >
                         {data.modules.map((m) => (
                           <option key={m.id} value={m.id}>
-                            {m.name}
+                            {m.name} {m.active === false ? '(Disabled Module)' : ''}
                           </option>
                         ))}
                       </select>
@@ -1641,6 +1820,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         placeholder="e.g. 🥬 or 🍕"
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
                       />
+                    </div>
+
+                    {/* Category Active / Visible Toggle */}
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                          <Power className="w-4 h-4 text-emerald-600" />
+                          Category Status (Active/Visible)
+                        </div>
+                        <div className="text-slate-500 text-[10px]">
+                          Enable to show on catalog; disable to hide
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editingCategory.active !== false}
+                          onChange={(e) => setEditingCategory({ ...editingCategory, active: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
                     </div>
 
                     {/* DIRECT CATEGORY LOGO UPLOAD & URL */}
@@ -1694,13 +1895,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       onClick={() => setEditingCategory(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSaveCategory}
-                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 shadow-md"
+                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 shadow-md cursor-pointer"
                     >
                       Save Category
                     </button>
@@ -1710,26 +1911,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Category List grouped/displayed */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {data.categories.map((cat) => {
+                {data.categories.map((cat, catIndex) => {
                   const mod = data.modules.find((m) => m.id === cat.moduleId);
                   const prodCount = data.products.filter((p) => p.categoryId === cat.id).length;
+                  const isCatActive = cat.active !== false;
 
                   return (
                     <div
                       key={cat.id}
-                      className="border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
+                      className={`border p-3.5 rounded-2xl flex items-center justify-between text-xs transition-all ${
+                        !isCatActive
+                          ? 'border-slate-300 bg-slate-100/80 opacity-80'
+                          : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:shadow-xs'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                          {cat.image ? (
-                            <img src={cat.image} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-2xl">{cat.icon}</span>
+                      <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
+                        <div className="relative shrink-0">
+                          <div className="w-13 h-13 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                            {cat.image ? (
+                              <img src={cat.image} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-2xl">{cat.icon}</span>
+                            )}
+                          </div>
+                          {!isCatActive && (
+                            <span className="absolute inset-0 bg-slate-900/60 backdrop-blur-2xs rounded-xl flex items-center justify-center text-white font-extrabold text-[8px] uppercase">
+                              Hidden
+                            </span>
                           )}
                         </div>
-                        <div>
-                          <div className="font-extrabold text-slate-900 text-sm">{cat.name}</div>
-                          <div className="flex items-center gap-2 mt-0.5">
+
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold text-slate-900 text-sm truncate">{cat.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">
                               Module: {mod?.name || 'General'}
                             </span>
@@ -1737,23 +1951,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               {prodCount} items
                             </span>
                           </div>
+
+                          {/* Quick Enable/Disable toggle */}
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleCategoryActive(cat.id)}
+                              className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all shadow-2xs cursor-pointer ${
+                                isCatActive
+                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
+                              }`}
+                              title={
+                                isCatActive
+                                  ? 'Click to Disable / Hide Category from storefront'
+                                  : 'Click to Enable / Show Category on storefront'
+                              }
+                            >
+                              {isCatActive ? (
+                                <>
+                                  <ToggleRight className="w-3.5 h-3.5 text-emerald-700" />
+                                  <span>Active & Visible</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Disabled (ഡിസേബിൾ)</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5 shrink-0">
+                      {/* Reorder and Edit/Delete Actions */}
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        {/* Up/Down buttons */}
+                        <div className="flex flex-col gap-1 mr-1">
+                          <button
+                            onClick={() => handleMoveCategory(catIndex, 'up')}
+                            disabled={catIndex === 0}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Category Up (മുകളിലേക്ക്)"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveCategory(catIndex, 'down')}
+                            disabled={catIndex === data.categories.length - 1}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Category Down (താഴേക്ക്)"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                        </div>
+
                         <button
                           onClick={() => {
                             setEditingCategory(cat);
                             setIsNewCategory(false);
                           }}
-                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl cursor-pointer"
                           title="Edit Category"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl cursor-pointer"
                           title="Delete Category"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1772,7 +2036,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-black text-base text-slate-900">Homepage Modules Configuration</h3>
-                  <p className="text-slate-500 text-xs">Add, edit, delete modules & customize module logo images</p>
+                  <p className="text-slate-500 text-xs">
+                    Enable/disable modules, reorder positions (up/down), edit details & logos
+                  </p>
                 </div>
 
                 <button
@@ -1786,10 +2052,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       bgColor: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)',
                       size: 'medium',
                       badge: '',
+                      active: true,
                     });
                     setIsNewModule(true);
                   }}
-                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0"
+                  className="bg-[#FF7A00] hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> Add Module
                 </button>
@@ -1805,7 +2072,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </h4>
                     <button
                       onClick={() => setEditingModule(null)}
-                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300"
+                      className="p-1 bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300 cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1858,6 +2125,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       />
                     </div>
 
+                    {/* Module Active / Visibility Toggle */}
+                    <div className="sm:col-span-2 bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <div className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                          <Power className="w-4 h-4 text-purple-600" />
+                          Module Active & Visible on Storefront
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          Enable to show on home screen; disable to temporarily hide this module and its products.
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editingModule.active !== false}
+                          onChange={(e) => setEditingModule({ ...editingModule, active: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+
                     <div className="sm:col-span-2">
                       <label className="block text-slate-700 font-bold mb-1">Short Subtitle / Description</label>
                       <input
@@ -1879,7 +2168,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {/* Preview */}
                         <div className="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
                           {editingModule.image ? (
-                            <img src={editingModule.image} alt="" className="w-full h-full object-contain" />
+                            <img src={editingModule.image} alt="" className="w-full h-full object-contain p-1" />
                           ) : (
                             <span className="text-3xl">{editingModule.icon || '📦'}</span>
                           )}
@@ -1920,13 +2209,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       onClick={() => setEditingModule(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSaveModule}
-                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+                      className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-purple-600 text-white hover:bg-purple-700 shadow-md cursor-pointer"
                     >
                       Save Module
                     </button>
@@ -1936,49 +2225,112 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Module List */}
               <div className="space-y-3">
-                {data.modules.map((mod) => {
+                {data.modules.map((mod, modIndex) => {
                   const catCount = data.categories.filter((c) => c.moduleId === mod.id).length;
+                  const isModActive = mod.active !== false;
 
                   return (
                     <div
                       key={mod.id}
-                      className="border border-slate-200/80 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs bg-slate-50/50 hover:bg-white hover:shadow-xs transition-all"
+                      className={`border p-4 rounded-2xl flex items-center justify-between gap-3 text-xs transition-all ${
+                        !isModActive
+                          ? 'border-slate-300 bg-slate-100/80 opacity-80'
+                          : 'border-slate-200/80 bg-slate-50/50 hover:bg-white hover:shadow-xs'
+                      }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                          {mod.image ? (
-                            <img src={mod.image} alt="" className="w-full h-full object-contain p-1" />
-                          ) : (
-                            <span className="text-2xl">{mod.icon}</span>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="relative shrink-0">
+                          <div className="w-13 h-13 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                            {mod.image ? (
+                              <img src={mod.image} alt="" className="w-full h-full object-contain p-1" />
+                            ) : (
+                              <span className="text-2xl">{mod.icon}</span>
+                            )}
+                          </div>
+                          {!isModActive && (
+                            <span className="absolute inset-0 bg-slate-900/60 backdrop-blur-2xs rounded-2xl flex items-center justify-center text-white font-extrabold text-[8px] uppercase">
+                              Hidden
+                            </span>
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
                             <span className="truncate">{mod.name}</span>
                             <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
                               {mod.size}
                             </span>
                           </div>
-                          <div className="text-slate-500 font-medium text-[11px] truncate">
+                          <div className="text-slate-500 font-medium text-[11px] truncate mt-0.5">
                             {mod.description || 'No description'} • <span className="font-bold text-slate-700">{catCount} categories</span>
+                          </div>
+
+                          {/* Quick Enable/Disable toggle */}
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleModuleActive(mod.id)}
+                              className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all shadow-2xs cursor-pointer ${
+                                isModActive
+                                  ? 'bg-purple-100 text-purple-800 hover:bg-purple-200 border border-purple-300'
+                                  : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
+                              }`}
+                              title={
+                                isModActive
+                                  ? 'Click to Disable / Hide Module from storefront'
+                                  : 'Click to Enable / Show Module on storefront'
+                              }
+                            >
+                              {isModActive ? (
+                                <>
+                                  <ToggleRight className="w-3.5 h-3.5 text-purple-700" />
+                                  <span>Active & Visible</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Disabled (ഡിസേബിൾ)</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-1.5 shrink-0">
+                      {/* Reorder and Edit/Delete Actions */}
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        {/* Up/Down buttons */}
+                        <div className="flex flex-col gap-1 mr-1">
+                          <button
+                            onClick={() => handleMoveModule(modIndex, 'up')}
+                            disabled={modIndex === 0}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Module Up (മുകളിലേക്ക്)"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveModule(modIndex, 'down')}
+                            disabled={modIndex === data.modules.length - 1}
+                            className="p-1 bg-white hover:bg-slate-200 disabled:opacity-20 border border-slate-200 rounded-lg text-slate-700 cursor-pointer shadow-2xs"
+                            title="Move Module Down (താഴേക്ക്)"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                        </div>
+
                         <button
                           onClick={() => {
                             setEditingModule(mod);
                             setIsNewModule(false);
                           }}
-                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl"
+                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl cursor-pointer"
                           title="Edit Module"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteModule(mod.id)}
-                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl"
+                          className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl cursor-pointer"
                           title="Delete Module"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

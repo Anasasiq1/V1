@@ -11,6 +11,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
       size: 'medium',
       order: 1,
+      active: true,
     },
     {
       id: 'mod-pharmacy',
@@ -21,6 +22,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)',
       size: 'medium',
       order: 2,
+      active: true,
     },
     {
       id: 'mod-shop',
@@ -31,6 +33,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%)',
       size: 'medium',
       order: 3,
+      active: true,
     },
     {
       id: 'mod-food',
@@ -41,6 +44,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
       size: 'small',
       order: 4,
+      active: true,
     },
     {
       id: 'mod-parcel',
@@ -51,6 +55,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)',
       size: 'small',
       order: 5,
+      active: true,
     },
     {
       id: 'mod-electronics',
@@ -61,6 +66,7 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #e0f7fa 0%, #80deea 100%)',
       size: 'small',
       order: 6,
+      active: true,
     },
     {
       id: 'mod-meat',
@@ -71,17 +77,18 @@ export const initialData: AppData = {
       bgColor: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)',
       size: 'medium',
       order: 7,
+      active: true,
     },
   ],
   categories: [
-    { id: 'cat-veg', name: 'Vegetables & Fruits', moduleId: 'mod-grocery', icon: '🥬' },
-    { id: 'cat-dairy', name: 'Dairy & Bakery', moduleId: 'mod-grocery', icon: '🥛' },
-    { id: 'cat-med', name: 'Medicines & Wellness', moduleId: 'mod-pharmacy', icon: '💉' },
-    { id: 'cat-meals', name: 'Meals & Biryani', moduleId: 'mod-food', icon: '🍲' },
-    { id: 'cat-fastfood', name: 'Burgers & Fast Food', moduleId: 'mod-food', icon: '🍕' },
-    { id: 'cat-apparel', name: 'Fashion & Shirts', moduleId: 'mod-shop', icon: '👕' },
-    { id: 'cat-gadgets', name: 'Mobile Accessories', moduleId: 'mod-electronics', icon: '🎧' },
-    { id: 'cat-freshmeat', name: 'Fresh Poultry & Fish', moduleId: 'mod-meat', icon: '🍗' },
+    { id: 'cat-veg', name: 'Vegetables & Fruits', moduleId: 'mod-grocery', icon: '🥬', order: 1, active: true },
+    { id: 'cat-dairy', name: 'Dairy & Bakery', moduleId: 'mod-grocery', icon: '🥛', order: 2, active: true },
+    { id: 'cat-med', name: 'Medicines & Wellness', moduleId: 'mod-pharmacy', icon: '💉', order: 3, active: true },
+    { id: 'cat-meals', name: 'Meals & Biryani', moduleId: 'mod-food', icon: '🍲', order: 4, active: true },
+    { id: 'cat-fastfood', name: 'Burgers & Fast Food', moduleId: 'mod-food', icon: '🍕', order: 5, active: true },
+    { id: 'cat-apparel', name: 'Fashion & Shirts', moduleId: 'mod-shop', icon: '👕', order: 6, active: true },
+    { id: 'cat-gadgets', name: 'Mobile Accessories', moduleId: 'mod-electronics', icon: '🎧', order: 7, active: true },
+    { id: 'cat-freshmeat', name: 'Fresh Poultry & Fish', moduleId: 'mod-meat', icon: '🍗', order: 8, active: true },
   ],
   products: [
     {
